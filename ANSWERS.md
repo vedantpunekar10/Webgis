@@ -320,19 +320,87 @@ result. Left in the CSV rather than quietly dropped, since it's a
 genuine, explainable edge case rather than a data error.
 
 ### Q7. Coverage and the MAUP
-What share of population is beyond the walking threshold, by network and
-by buffer; compute the network figure aggregated by ward/pin code/village,
-by H3 resolution 8, and by H3 resolution 9; does the conclusion change;
-give the H3 index of the worst-served populated cell.
 
-_Pending: needs the registered area and a population source (WorldPop or
-building-footprint-area proxy, per the brief)._
+Script: [`analysis/q7_coverage_maup.py`](analysis/q7_coverage_maup.py),
+full cell data: `analysis/q7_h3_res8.csv` / `q7_h3_res9.csv`. WorldPop
+wasn't available offline in the time I had, so population is proxied by
+summed building-footprint area per cell (m²), exactly as the brief
+allows — stated here, as required.
+
+```
+=== Resolution 8 (8 cells) ===
+  % pop beyond threshold (network):   0.0%
+  % pop beyond threshold (straight):  0.0%
+  worst-served populated cell: 8860885097fffff (network_dist=1196m)
+
+=== Resolution 9 (59 cells) ===
+  % pop beyond threshold (network):   6.4%
+  % pop beyond threshold (straight):  0.0%
+  worst-served populated cell: 896088509b7ffff (network_dist=1531m, pop_proxy=25431 m²)
+```
+
+**Does the conclusion change? Yes, dramatically — this is MAUP in
+action on real data.** At the coarse resolution 8 (8 cells, each one
+covering a large chunk of the study area), every cell's centre is within
+reach and the conclusion is "100% covered." At the finer resolution 9 (59
+smaller cells), the exact same underlying network distances reveal that
+6.4% of the (proxy) population sits in cells whose centre is beyond the
+1.2km threshold — a real coverage gap that simply isn't visible at the
+coarser aggregation, purely because of where the res-8 cell boundaries
+happened to fall relative to it.
+
+**Straight-line buffer reports 0.0% at both resolutions** — it never
+finds a gap at all, because (per Q6) it systematically underestimates
+real walking distance. The network/straight-line split and the
+res8/res9 split are two independent reasons the "same" coverage question
+can get a different answer, and both show up clearly here.
+
+**Ward/pincode/village aggregation:** not done — this study area is a
+single Kothrud-sized box with no sub-ward administrative boundaries
+available to aggregate by (the brief's own fallback for exactly this
+situation — "for a taluka, aggregate by village instead" — doesn't quite
+apply either, since this is an urban ward-scale area, not a taluka). The
+H3 resolution 8 vs 9 comparison above already demonstrates the MAUP point
+the question is after.
+
+**Worst-served populated cell:** `896088509b7ffff` (H3 res 9), 1,531m
+network distance to the nearest healthcare service — 331m past the 1.2km
+threshold.
 
 ### Q8. Who is the model for?
-Re-run network coverage at 3.6 km/h; how many percentage points of
-population coverage are lost, and where.
 
-_Pending: same prerequisites as Q7._
+Same network-distance data as Q7, re-thresholded: 3.6 km/h → 900m in 15
+minutes (vs 1.2km at 4.8 km/h).
+
+```
+=== Resolution 8 ===
+  % beyond threshold @4.8km/h (1200m): 0.0%
+  % beyond threshold @3.6km/h (900m):  18.1%
+  percentage points lost: 18.1
+  newly-excluded cells: ['886088509bfffff', '8860885097fffff']
+
+=== Resolution 9 ===
+  % beyond threshold @4.8km/h (1200m): 6.4%
+  % beyond threshold @3.6km/h (900m):  11.0%
+  percentage points lost: 4.5
+  newly-excluded cells: [5 cells, incl. '896088509a7ffff', '89608850963ffff', ...]
+```
+
+At the slower, more elderly-realistic walking speed, coverage drops
+sharply — **18.1 percentage points** at resolution 8, or **4.5 points**
+at resolution 9, for the exact same underlying network distances.
+
+**Worth flagging on its own: resolution 8 loses *four times* more
+percentage points than resolution 9 for the identical speed change** —
+another MAUP effect, not a second independent finding. At the coarse
+resolution, each cell is large, so one cell crossing the threshold flips
+a large chunk of (proxy) population from "covered" to "not covered" in
+one jump; at the fine resolution the same underlying change is spread
+across many more, smaller cells, so the reported swing looks gentler even
+though it reflects the same real-world change in who can and can't reach
+a hospital on foot in 15 minutes. Which aggregation unit you pick doesn't
+just change the headline coverage number (Q7) — it also changes how
+sensitive that number looks to a modeling assumption like walking speed.
 
 ## Phase 4 — Map client and performance
 
