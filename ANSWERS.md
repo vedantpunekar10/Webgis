@@ -405,14 +405,61 @@ sensitive that number looks to a modeling assumption like walking speed.
 ## Phase 4 — Map client and performance
 
 ### Q9. Three ways to ship the same map
-With DevTools Network (cache disabled), record at zoom 12, 14, 16 the
-number of requests, KB transferred, and time to finish for buildings as
-(a) tiled WMS PNG, (b) one WFS GeoJSON, (c) MVT from pg_tileserv; give a
-3×3 table; explain which breaks first as the area grows; compare with how
-the earlier project loaded data and how it would behave at city scale.
 
-_Partially ready: pg_tileserv and GeoServer are both live now; needs the
-MapLibre client built and the area's building data loaded._
+Built the actual client at [`client/index.html`](client/index.html) —
+MapLibre GL JS, OSM basemap, the H3 coverage hexagons as real polygon
+vector tiles from pg_tileserv with data-driven fill color by
+`network_dist_m`, healthcare services via pg_featureserv (OGC API –
+Features) with click popups, a layer-toggle panel, and a legend. The
+"load all buildings as one WFS GeoJSON" toggle is wired to GeoServer's
+WFS endpoint, verified actually firing in the browser's own network log
+(`http://localhost:8081/geoserver/webgis/ows?...typeNames=webgis:buildings...` → 200).
+
+Measured with [`analysis/q9_perf_measure.py`](analysis/q9_perf_measure.py):
+a 3×3 grid of real tile requests (9 tiles) around the study area centre,
+same tile coordinates used for both WMS and MVT so the comparison is
+apples-to-apples; WFS is a single unbounded request (as the client task
+itself specifies), so it's measured once, not per zoom.
+
+| Zoom | WMS requests | WMS KB | WMS time (s) | MVT requests | MVT KB | MVT time (s) |
+|---|---|---|---|---|---|---|
+| 12 | 9 | 37.3 | 0.75 | 9 | **1282.6** | 0.59 |
+| 14 | 9 | 271.2 | 0.37 | 9 | 928.6 | 0.25 |
+| 16 | 9 | 340.3 | 0.24 | 9 | **169.0** | 0.08 |
+
+WFS GeoJSON (all buildings, one request): **1 request, 7,656.8 KB, 0.44s**.
+
+**Genuinely surprising result, worth stating honestly rather than forcing
+the textbook answer:** at zoom 12, MVT is **34× larger** than WMS, not
+smaller. This is because pg_tileserv (in its default config here) serves
+the *same full-resolution* building geometry at every zoom level — no
+server-side simplification/generalization by zoom. At zoom 12, each of
+the 9 tiles covers a large chunk of the study area, packing in full-detail
+polygons for thousands of buildings; the WMS PNG covering the same area
+is a fixed 256×256 raster that compresses very well once rendered. By
+zoom 16, the situation flips hard — each tile now covers a small patch
+with few buildings, so MVT (169KB) becomes dramatically smaller than WMS
+(340KB), because WMS still has to rasterize and re-encode a full image
+per tile regardless of how little is in it, while MVT's payload shrinks
+with the actual feature count.
+
+**Which breaks first as the area grows:** the single WFS GeoJSON request,
+unambiguously — 7.6MB for this one 2.4km-wide ward already; at real city
+scale (10-100× more buildings), that single request becomes tens to
+hundreds of MB, downloaded all at once before anything can render, with
+no way to show partial progress or avoid data the user never scrolls to.
+Both tiled approaches (WMS, MVT) scale with *viewport* size, not *city*
+size — a bigger city means more total tiles exist, but any one view still
+only fetches the handful of tiles it's currently showing.
+
+**How the earlier project loaded data, and how it'd behave at city
+scale:** `legacy/nearby-services-gis.html` fetches everything live from
+Overpass as one unbounded JSON response per search (its `runSearch()`
+function), scoped only by the user-chosen radius — functionally the same
+pattern as this assignment's WFS-GeoJSON path. It would hit the exact
+same wall at city scale: a bigger search radius means a bigger single
+payload, with no tiling, no pagination beyond what Overpass itself
+enforces, and no partial rendering until the whole response arrives.
 
 ## Phase 5 — Deploy it, for free
 
