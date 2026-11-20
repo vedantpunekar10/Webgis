@@ -215,23 +215,70 @@ Clinic" (13450231252), "Khenat Hospital and Maternity Home" (7079392124),
 ## Phase 2 — Publish your own OGC services
 
 ### Q4. The axis-order trap
-From the WMS 1.3.0 GetCapabilities, paste the services layer's
-BoundingBox for EPSG:4326; send two GetMap requests with the same four
-BBOX numbers (one VERSION=1.1.1&SRS=EPSG:4326, one
-VERSION=1.3.0&CRS=EPSG:4326); screenshot both; explain the difference
-using the standard.
 
-_Partially ready: GeoServer is live at `http://localhost:8081/geoserver/web/`
-— this can be demonstrated as soon as the services layer exists, which
-needs the registered area's data published as a layer._
+Published the `services` table as a GeoServer layer (`webgis:services`)
+via the REST API. From its WMS 1.3.0 GetCapabilities
+(`http://localhost:8081/geoserver/webgis/wms?service=WMS&version=1.3.0&request=GetCapabilities`):
+
+```xml
+<BoundingBox CRS="CRS:84" minx="73.77655792236328" miny="18.479516983032227" maxx="73.83538055419922" maxy="18.530820846557617"/>
+<BoundingBox CRS="EPSG:4326" minx="18.479516983032227" miny="73.77655792236328" maxx="18.530820846557617" maxy="73.83538055419922"/>
+```
+
+Notice: the **same real-world box** is reported twice, with the min/max
+values swapped between `minx`/`miny` depending on CRS — `CRS:84` keeps
+(lon, lat) order; `EPSG:4326` reports (lat, lon) order, exactly per the
+standard.
+
+Sent the identical four raw numbers (`73.77655792236328,18.479516983032227,73.83538055419922,18.530820846557617`)
+as `BBOX` to both:
+
+- `http://localhost:8081/geoserver/webgis/wms?service=WMS&version=1.1.1&request=GetMap&layers=webgis:services&srs=EPSG:4326&bbox=<same4numbers>&width=600&height=600&format=image/png` → HTTP 200, 13,016 bytes
+- `http://localhost:8081/geoserver/webgis/wms?service=WMS&version=1.3.0&request=GetMap&layers=webgis:services&crs=EPSG:4326&bbox=<same4numbers>&width=600&height=600&format=image/png` → HTTP 200, 5,819 bytes
+
+Screenshots: [`study/evidence/q4_wms_1.1.1.png`](study/evidence/q4_wms_1.1.1.png)
+(all 151 service points render correctly, scattered across the study
+area) vs [`study/evidence/q4_wms_1.3.0.png`](study/evidence/q4_wms_1.3.0.png)
+(**completely blank**).
+
+**Explanation.** 1.1.1 always treats EPSG:4326 BBOX as (lon, lat, lon,
+lat), matching how these numbers were written, so it renders the correct
+area. 1.3.0 follows the CRS authority's own defined axis order for
+EPSG:4326, which is (lat, lon) — so it reads the same four numbers as
+"latitude between 73.78 and 73.84," which is outside the valid ±90°
+latitude range entirely. GeoServer doesn't error on this; it just finds
+nothing to render there and returns a blank (but still 200 OK, smaller
+file) image — which is exactly why this bug is dangerous in practice: a
+silently blank map, not a loud error.
 
 ### Q5. WFS with a filter, two formats
-Write a WFS 2.0 GetFeature request returning only named services inside
-the area; give the full URL and numberMatched; fetch the same result as
-GML 3.2 and GeoJSON; report both sizes in KB and the coordinate order of
-the first point in each.
 
-_Pending: needs the services layer published in GeoServer._
+URL (GeoJSON; swap `outputFormat` for `gml32` to get the GML version):
+```
+http://localhost:8081/geoserver/webgis/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=webgis:services&CQL_FILTER=name%20IS%20NOT%20NULL&outputFormat=application/json
+```
+
+`numberMatched="144"` in both formats (matches 151 total − 7 with no
+name, from Q3).
+
+| Format | File | Size | First point's coordinate order |
+|---|---|---|---|
+| GeoJSON | `study/evidence/q5_named_services.geojson` | 47,325 bytes (46.2 KB) | `[73.8058, 18.5075]` — **(lon, lat)** |
+| GML 3.2 | `study/evidence/q5_named_services.gml` | 108,205 bytes (105.7 KB) | `<gml:pos>18.5075 73.8058</gml:pos>` — **(lat, lon)** |
+
+GML is more than **2.3× larger** than GeoJSON for the identical 144
+features — GML's verbose XML element structure (open/close tags per
+coordinate, per property) costs real bytes compared to GeoJSON's compact
+array-based structure.
+
+**Same axis-order story as Q4, in a different format:** GeoJSON (per
+RFC 7946) always fixes coordinate order as (longitude, latitude)
+regardless of CRS; GML 3.2 instead follows the CRS's own authority-defined
+axis order for EPSG:4326 — (latitude, longitude) — exactly the same rule
+that caused the WMS 1.3.0 blank-map result in Q4. Any client parsing GML
+coordinates by assuming "x then y = lon then lat" (a very natural but
+wrong assumption carried over from GeoJSON habits) would silently plot
+every point at the wrong location.
 
 ## Phase 3 — Was your earlier "nearest" right?
 
