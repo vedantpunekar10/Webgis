@@ -2,10 +2,11 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Kothrud Healthcare Access — WebGIS</title>
+<title>Kothrud Healthcare Access — WebGIS (static)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js"></script>
 <style>
   html, body, #map { height: 100%; margin: 0; }
   #panel {
@@ -14,30 +15,32 @@
     font: 13px sans-serif; box-shadow: 0 1px 4px rgba(0,0,0,.3); max-width: 240px;
   }
   #panel h3 { margin: 0 0 6px; font-size: 14px; }
-  #panel label { display: block; margin: 4px 0; }
   #legend { margin-top: 8px; font-size: 12px; }
   .legend-swatch { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: middle; }
+  #note { font-size: 11px; color: #555; margin-top: 8px; }
 </style>
 </head>
 <body>
 <div id="map"></div>
 <div id="panel">
   <h3>Kothrud Healthcare Access</h3>
-  <label><input type="checkbox" id="toggle-hex" checked> Coverage hexagons (H3 res 9)</label>
-  <label><input type="checkbox" id="toggle-services" checked> Healthcare services</label>
-  <label><input type="checkbox" id="toggle-buildings-wfs"> Buildings (one WFS GeoJSON request — perf test)</label>
   <div id="legend">
     <strong>Network distance to nearest service</strong><br>
     <span class="legend-swatch" style="background:#2ca25f"></span>&lt; 600m<br>
     <span class="legend-swatch" style="background:#fdae61"></span>600–1200m<br>
     <span class="legend-swatch" style="background:#d73027"></span>&gt; 1200m (beyond 15-min threshold)
   </div>
+  <div id="note">
+    Static deployment — reads <code>data.pmtiles</code> directly over HTTP
+    range requests. No server runs for this page; see
+    <code>client/index-local.html</code> for the live GeoServer/pg_tileserv/
+    pg_featureserv version used for Q9's performance comparison.
+  </div>
 </div>
 
 <script>
-const TILESERV = "http://localhost:7800";
-const FEATURESERV = "http://localhost:9000";
-const GEOSERVER = "http://localhost:8081/geoserver/webgis";
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", protocol.tile);
 
 const map = new maplibregl.Map({
   container: "map",
@@ -50,82 +53,46 @@ const map = new maplibregl.Map({
         tileSize: 256,
         attribution: "&copy; OpenStreetMap contributors",
       },
+      hexpmtiles: {
+        type: "vector",
+        url: "pmtiles://./data.pmtiles",
+      },
     },
-    layers: [{ id: "osm", type: "raster", source: "osm" }],
+    layers: [
+      { id: "osm", type: "raster", source: "osm" },
+      {
+        id: "hex-fill",
+        type: "fill",
+        source: "hexpmtiles",
+        "source-layer": "hex_res9",
+        paint: {
+          "fill-color": [
+            "step", ["get", "network_dist_m"],
+            "#2ca25f", 600, "#fdae61", 1200, "#d73027",
+          ],
+          "fill-opacity": 0.5,
+        },
+      },
+      {
+        id: "services-points",
+        type: "circle",
+        source: "hexpmtiles",
+        "source-layer": "services",
+        paint: { "circle-radius": 5, "circle-color": "#08519c", "circle-stroke-color": "#fff", "circle-stroke-width": 1 },
+      },
+    ],
   },
   center: [73.8057, 18.5073],
   zoom: 14,
 });
 
 map.on("load", () => {
-  // Hex coverage layer, served as vector tiles straight from pg_tileserv (MVT)
-  map.addSource("hex", {
-    type: "vector",
-    tiles: [`${TILESERV}/public.hex_coverage_res9/{z}/{x}/{y}.pbf`],
-  });
-  map.addLayer({
-    id: "hex-fill",
-    type: "fill",
-    source: "hex",
-    "source-layer": "public.hex_coverage_res9",
-    paint: {
-      "fill-color": [
-        "step", ["get", "network_dist_m"],
-        "#2ca25f", 600, "#fdae61", 1200, "#d73027",
-      ],
-      "fill-opacity": 0.5,
-    },
-  });
-
-  // Healthcare services, via OGC API - Features (pg_featureserv)
-  fetch(`${FEATURESERV}/collections/public.services/items.json?limit=1000`)
-    .then((r) => r.json())
-    .then((geojson) => {
-      map.addSource("services", { type: "geojson", data: geojson });
-      map.addLayer({
-        id: "services-points",
-        type: "circle",
-        source: "services",
-        paint: { "circle-radius": 5, "circle-color": "#08519c", "circle-stroke-color": "#fff", "circle-stroke-width": 1 },
-      });
-      map.on("click", "services-points", (e) => {
-        const p = e.features[0].properties;
-        new maplibregl.Popup()
-          .setLngLat(e.lngLat)
-          .setHTML(`<b>${p.name || "(unnamed)"}</b><br>${p.amenity || p.healthcare || ""}`)
-          .addTo(map);
-      });
-    });
-
-  document.getElementById("toggle-hex").addEventListener("change", (e) => {
-    map.setLayoutProperty("hex-fill", "visibility", e.target.checked ? "visible" : "none");
-  });
-  document.getElementById("toggle-services").addEventListener("change", (e) => {
-    const v = e.target.checked ? "visible" : "none";
-    if (map.getLayer("services-points")) map.setLayoutProperty("services-points", "visibility", v);
-  });
-
-  // Q9 perf test: load ALL buildings as one WFS GeoJSON request
-  document.getElementById("toggle-buildings-wfs").addEventListener("change", (e) => {
-    if (!e.target.checked) {
-      if (map.getLayer("buildings-wfs-layer")) {
-        map.removeLayer("buildings-wfs-layer");
-        map.removeSource("buildings-wfs");
-      }
-      return;
-    }
-    const url = `${GEOSERVER}/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=webgis:buildings&outputFormat=application/json`;
-    fetch(url)
-      .then((r) => r.json())
-      .then((geojson) => {
-        map.addSource("buildings-wfs", { type: "geojson", data: geojson });
-        map.addLayer({
-          id: "buildings-wfs-layer",
-          type: "fill",
-          source: "buildings-wfs",
-          paint: { "fill-color": "#888", "fill-opacity": 0.4, "fill-outline-color": "#444" },
-        });
-      });
+  map.on("click", "services-points", (e) => {
+    const p = e.features[0].properties;
+    new maplibregl.Popup()
+      .setLngLat(e.lngLat)
+      .setHTML(`<b>${p.name || "(unnamed)"}</b><br>${p.amenity || p.healthcare || ""}`)
+      .addTo(map);
   });
 });
 </script>

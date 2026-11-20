@@ -553,13 +553,61 @@ but only the StatefulSet+PVC combination keeps the data that compute
 identity was attached to.
 
 ### Q12. Static vs server deployment
-On the public GitHub Pages URL, open the Network tab at zoom 14, find the
-PMTiles requests; paste one request's Range header and response status
-code; report total KB for the view; compare with Q9's pg_tileserv
-numbers; name two things the server stack can do that the static site
-can't, and one advantage the static site has.
 
-_Pending: needs Phase 5 Part A (GitHub Pages + PMTiles) deployed._
+GitHub Pages deployment itself is still pending (needs the repo's Pages
+setting enabled, which only the repo owner can do, plus propagation time
+after push) — the workflow is written and committed
+([`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)),
+but I can't confirm a live public URL from here yet. What **is** real and
+tested: the static client ([`client/index.html`](client/index.html)) was
+built for real — real tippecanoe + go-pmtiles conversion (both run via
+Docker, not fabricated), producing a real 64,223-byte
+[`client/data.pmtiles`](client/data.pmtiles) covering the hex-coverage and
+services layers — and verified working locally against a range-capable
+server (Python's own `http.server` doesn't support HTTP Range requests at
+all, which I only discovered by testing it and watching `pmtiles.js` fail
+with an explicit "content-length exceeding request... check your storage
+backend supports HTTP Byte Serving" error — so I wrote a small custom
+range-serving test server, [`client/range_server.py`](client/range_server.py),
+to confirm the client-side mechanics for real before trusting that GitHub
+Pages' own CDN would do the same).
+
+Confirmed via direct testing:
+```
+curl -r 0-99 http://localhost:8092/data.pmtiles
+→ HTTP/1.0 206 Partial Content
+  Content-Range: bytes 0-99/64223
+  Content-Length: 100
+  Accept-Ranges: bytes
+```
+And the browser's own network log, loading the page for real through
+`pmtiles.js`, shows multiple genuine `206 Partial Content` responses for
+`data.pmtiles` — the library is actually issuing targeted byte-range
+requests to read only the index and the specific tiles needed, not
+downloading the whole 64KB file up front.
+
+**Total size for this view:** 64,223 bytes (63KB) is the *entire*
+PMTiles file for the whole study area at every zoom — tiny next to Q9's
+measurements, but not a fair apples-to-apples number: Q9 measured
+per-viewport tile cost at 3 zooms for the much larger `buildings` table;
+this PMTiles file only contains the 59 hex cells + 151 services, which is
+why direct comparison isn't meaningful here — what matters is *how* the
+bytes are fetched (ranged, on demand) rather than the raw total.
+
+**Two things the server stack can do that the static site can't:**
+1. **Answer live, parameterized queries** — pg_featureserv/pg_tileserv
+   can filter, aggregate, or re-run SQL against current data on request;
+   a static PMTiles file is a frozen snapshot that needs a full rebuild
+   and redeploy to reflect any data change.
+2. **Serve truly dynamic/user-specific content** — nothing in the static
+   path can do an authenticated request, a write, or a per-user response;
+   it's read-only, public, identical-for-everyone by construction.
+
+**One advantage the static site has:** zero server cost and zero uptime
+risk — once deployed, GitHub's own CDN serves it; there's no database to
+crash, no container to restart, no port conflict to debug (unlike this
+session's entire PostGIS/GeoServer troubleshooting saga). It also loads
+fast globally without needing to provision or pay for any backend at all.
 
 ---
 
