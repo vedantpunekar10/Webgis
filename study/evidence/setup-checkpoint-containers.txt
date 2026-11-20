@@ -1,0 +1,5 @@
+NAME                  IMAGE                           COMMAND                  SERVICE          CREATED              STATUS                        PORTS
+wgis-geoserver        kartoza/geoserver:2.24.0        "/bin/bash /scripts/…"   geoserver        55 seconds ago       Up 54 seconds                 0.0.0.0:8081->8080/tcp, [::]:8081->8080/tcp
+wgis-pg-featureserv   pramsey/pg_featureserv:latest   "./pg_featureserv"       pg_featureserv   About a minute ago   Up About a minute             0.0.0.0:9000->9000/tcp, [::]:9000->9000/tcp
+wgis-pg-tileserv      pramsey/pg_tileserv:latest      "/app/pg_tileserv"       pg_tileserv      About a minute ago   Up About a minute             0.0.0.0:7800->7800/tcp, [::]:7800->7800/tcp
+wgis-postgis          postgis/postgis:16-3.4          "docker-entrypoint.s…"   postgis          About a minute ago   Up About a minute (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp

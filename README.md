@@ -1,65 +1,136 @@
-# 🏍️ RideStop — Petrol, Food & Stays for Riders | Pune
+# WebGIS Assignment: From Nearby Services to a Deployed Map Service
 
-A client-side Web GIS app for riders in Pune. It takes your location (via browser geolocation, address search, or a map click) and shows the stops that matter on a ride — petrol pumps, ATMs, food/dhabas, hotels & stays, repair and tyre shops, EV charging, plus hospitals, police, and parking for safety — on an interactive map, scoped to the Pune metropolitan area.
+**Public URL:** _GitHub Actions workflow is written and committed
+(`.github/workflows/deploy-pages.yml`); the live URL depends on GitHub
+Pages being enabled in this repo's Settings → Pages, which only the repo
+owner can do. Update this line once that's done and the first deploy
+completes._
 
-## Rider categories
-- ⛽ Petrol Pumps
-- 🏧 ATMs
-- 🍽️ Restaurants & Dhabas
-- 🏨 Hotels & Stays
-- ☕ Tea & Coffee Stalls
-- 🔧 Bike/Vehicle Repair
-- 🛞 Tyre & Puncture Shops
-- 🔌 EV Charging
-- 🏥 Hospitals
-- 🚓 Police
-- 🅿️ Parking
+Builds on **RideStop** — the pre-existing rider-focused nearby-services
+Web GIS in this same repo (`index.html` / `style.css` / `script.js`; see
+[`README_RIDESTOP.md`](README_RIDESTOP.md) for that app's own
+documentation) — rebuilding it into a provider/analyst Web GIS backed by
+PostGIS, GeoServer, pg_tileserv and pg_featureserv — answering: which
+residents of the study area cannot reach the service on foot within a
+reasonable time, and why?
 
-Default view opens with Petrol Pumps, ATMs, Restaurants & Dhabas, and Hotels & Stays active — toggle any of the others on as needed.
+**This one repository is both**: RideStop itself (the earlier
+nearby-services project, kept unmodified for the Q3/Q6/Q9 comparisons
+that need it untouched) **and** this assignment's new backend/analysis
+work. There is no separate repo for the old project — this is the single
+thing to submit.
 
-## Tech stack
-All free, key-less web services — no backend, build step, or API key required. It's a static site.
+- **Area:** Kothrud, Pune — a 2.4km study-area box centered on
+  (18.5073, 73.8057). No clean OSM administrative boundary exists for
+  this neighborhood, so the box was built per the brief's own fallback
+  guidance (rule 3). **Class-sheet registration is still something only
+  you can do** — this is the area actually used throughout Q1–Q12, so
+  register it as-is unless you need to pick something else.
+- **Service type:** Healthcare (`amenity=hospital`, `amenity=clinic`,
+  `amenity=doctors`, `healthcare=*`), carried over from RideStop's own
+  `hospital` category (`CATEGORIES` in `script.js`) for a valid Q3/Q6/Q9
+  comparison. 151 real features found (well above the 15 minimum).
+- **Walking threshold:** 15 minutes (1.2 km) — urban ward, per the brief's
+  "urban vs rural" rule.
+- **UTM zone:** EPSG:32643 (UTM 43N) — correct for Kothrud's longitude (73.8°E).
 
-- **Leaflet.js** — interactive map rendering, with 2 switchable basemaps (Streets, Satellite).
-- **Browser Geolocation API** — "My Location" one-shot fix, and "📡 Live" continuous tracking (`watchPosition`).
-- **Nominatim** (OpenStreetMap) — address search with live autocomplete suggestions, and reverse geocoding for the current location. Results are bounded to the Pune metropolitan area (`countrycodes=in` + a Pune viewbox, `bounded=1`).
-- **Overpass API** (OpenStreetMap, 4 mirrors raced in parallel — whichever answers first wins) — live query for nearby points of interest by category and radius.
-- **OSRM** (routing.openstreetmap.de) — turn-by-turn directions, used both for the 🧭 **Best Route** destination search and for routing to any nearby result, with distance and ETA. Defaults to the **🏍️ Ride** profile (motorable roads), with Cycling and Walking also available.
-- **Open-Meteo** — current weather at your location (useful before heading out).
-- **Open-Elevation** — elevation above sea level at your location.
-- **MQTT over WebSockets, via HiveMQ's public broker** — powers 🤝 **Ride Together**, relaying live location between everyone on the same Ride Code. No account or server of our own required.
+## Setup
 
-## Run it locally
-
-Any static file server works. For example:
+Everything runs through Docker Compose: PostGIS, GeoServer, pg_tileserv,
+and pg_featureserv on one network.
 
 ```bash
-python -m http.server 8000
+cp .env.example .env     # edit if you want non-default credentials
+docker compose up -d
 ```
 
-Then open `http://localhost:8000` in your browser.
+Services, once up:
+- PostGIS: `localhost:5433` (db/user/password from `.env`; remapped from
+  the default 5432 — see debugging log)
+- GeoServer admin: `http://localhost:8081/geoserver/web/` (note: **8081**, not
+  8080 — this machine already runs a native GeoServer install on 8080, so
+  the container is remapped to avoid the conflict; see debugging log)
+- pg_tileserv: `http://localhost:7800/`
+- pg_featureserv: `http://localhost:9000/`
 
-(Opening `index.html` directly via `file://` will *not* work for geolocation in most browsers — serve it over `http://localhost` instead.)
+RideStop itself (the baseline app) is static and needs no server beyond
+any plain static file host — see [`README_RIDESTOP.md`](README_RIDESTOP.md).
 
-## How to use
-The sidebar is split into three tabs — **🗺️ Explore**, **🧭 Routes**, and **🆘 Safety** — so related features are grouped instead of one long scroll.
+Verified working end-to-end on 2026-11-20: `docker compose ps` shows all
+four containers healthy, `SELECT PostGIS_Version()` returns `3.4`,
+pg_tileserv and pg_featureserv both return HTTP 200 on their root paths,
+and the GeoServer admin UI loads with WMS 1.3.0/1.1.1, WFS 2.0.0/1.1.0/1.0.0,
+WCS 2.0.1, and WPS 1.0.0 all listed. Evidence: `study/evidence/`.
 
-1. Click **My Location** to use your device's GPS/network location (allow the permission prompt), search a place in the top bar (suggestions appear as you type — use ↑/↓ + Enter or click one), or click anywhere on the map to set the search origin. **📡 Live** keeps the marker following you in real time, useful while actually riding.
-2. Once a location is set, the **Location Info** panel shows its address, current weather, and elevation.
-3. **Explore tab** — toggle the categories you care about and click **Find Nearby** (always a fixed 2 km radius, kept simple on purpose). Matching stops appear as markers on the map and as a distance-sorted list in the sidebar. Click a result's 🧭 button to draw a route to it (🏍️ Ride / 🚴 Cycling / 🚶 Walking, chosen above the results list). **⚡ Quick Find Nearest** skips the list entirely and jumps straight to the single closest match for one category — useful when you just need the nearest petrol pump *now*.
-4. **Routes tab — 🧭 Best Route**: search any destination in Pune and hit **Get Best Route** for the fastest route there from your current location, drawn on the map with distance and ETA — no need to look it up as a "nearby place" first.
-5. **Routes tab — ⛽ Fuel Range Calculator**: enter how far you can still ride before refuelling (a 5–100 km slider) and it searches for petrol pumps actually within that reach, rather than just listing the nearest ones regardless of distance — answers "can I actually get there?" instead of "what's closest?".
-6. **Safety tab — 🆘 Emergency SOS**: save an emergency contact's name/phone once; the always-visible 🆘 button on the map then sends them your current location via WhatsApp (or a call) with one tap.
-7. **Safety tab — 🤝 Ride Together**: enter a Ride Code (or generate one with 🎲), optionally your name, and hit **Start Sharing**. Send the same code to whoever you're riding with — once they also start sharing, you'll each see the other's live position on the map (🏍️ pink marker), with distance and last-update time in the sidebar. Hit **Stop Sharing** when you're done.
-8. **🔗 Copy Shareable Link** (Explore tab, once a location is set) puts a URL on your clipboard that reopens the app at the same location and categories — handy for sharing a rest stop with riding buddies.
-9. Switch basemaps (Streets/Satellite) from the layers control on the map's top-right. A scale bar and a live lat/lon readout (bottom-right) are also on the map at all times.
+## Sources / tools used
 
-## Customizing categories
-Categories and their OpenStreetMap tag mappings live in the `CATEGORIES` array at the top of [script.js](script.js). Add a new entry (id, label, singular fallback name, emoji icon, and one or more `key=value` OSM tag filters) to introduce a new stop type — e.g. `{ id: "helmet", label: "Helmet/Gear Shops", singular: "Gear Shop", icon: "🪖", filters: ["shop=motorcycle_accessories"] }`.
+- Docker Compose service images: `postgis/postgis:16-3.4`,
+  `kartoza/geoserver:2.24.0`, `pramsey/pg_tileserv:latest`,
+  `pramsey/pg_featureserv:latest` (all official/maintainer images from Docker Hub).
+- Docker Desktop release notes (docs.docker.com/desktop/release-notes/) —
+  used to diagnose the startup crash below.
+- Course brief: "WebGIS Assignment: From Nearby Services to a Deployed Map Service."
 
-## Notes / limits
-- Search and suggestions are hard-restricted to the Pune metropolitan area (`PUNE_VIEWBOX` in [script.js](script.js)); to widen or relocate that, change the viewbox (and `PUNE_CENTER`/`PUNE_DEFAULT_ZOOM`) or drop the `countrycodes`/`viewbox`/`bounded` params in `puneGeocodeUrl()` entirely.
-- The "Ride" directions profile uses OSRM's car routing (motorable roads) as the closest free approximation to two-wheeler routing — there's no dedicated motorcycle profile on the public OSRM mirrors.
-- Overpass and OSRM's public endpoints are free but rate-limited/best-effort; for heavy production use, consider self-hosting Overpass/OSRM or caching results.
-- Repair shops, tyre shops, and EV charging points are less consistently mapped in OpenStreetMap than petrol pumps or restaurants — results for those categories will vary more by area.
-- **Ride Together is not private.** It relays location over HiveMQ's public, no-login MQTT broker — anyone who knows (or guesses) your Ride Code can subscribe to it and see the shared location. Use a code that isn't easily guessable, and only share it with people you're actually riding with. It's also best-effort: the public broker has no uptime guarantee, and background/minimized browser tabs (especially on mobile) may get their location-publish timer throttled by the OS/browser, delaying updates until the tab is active again. For anything safety-critical, this needs a real authenticated backend, not a public demo relay.
+## Debugging log
+
+**What broke:** Docker Desktop crashed on every single launch attempt with:
+
+```
+starting services: initializing Ingest server: listening on
+unix://.../AppData/Local/Docker/run/sailor-ingest.sock: rename
+.../sailor-ingest.sock .../sailor-ingest.sock.stale: The file cannot be
+accessed by the system. (listener: The file cannot be accessed by the system.)
+```
+
+and, after a first partial fix, the same error on a second file:
+`.../AppData/Local/docker-secrets-engine/engine.sock`.
+
+**What we tried, in order, each verified to not be the cause:** removing
+the individual stale socket files (blocked — they were broken symlink
+reparse points Windows itself refused to touch); renaming the *parent*
+folders instead (worked, but the crash recurred on a fresh file moments
+later); `wsl --shutdown`; a full OS reboot; adding Windows Defender
+folder exclusions for every Docker path. None of these stopped the crash
+— which ruled out "stale leftover lock," "stuck WSL state," and
+"antivirus interference" as the actual cause.
+
+**Root cause:** the installed Docker Desktop version (4.89.0) was several
+releases behind current. Docker's own 4.99.0 release notes list, under
+"For Windows": *"Fixed an issue where Docker Desktop could shut down
+ungracefully, causing resource leaks or a corrupted state."* That's
+exactly this symptom.
+
+**Fix:** downloaded and installed the current Docker Desktop installer
+(updated to 4.99.0). First launch afterward came up clean with no crash.
+
+**Separate, smaller issues — two real port conflicts:** GeoServer's
+container failed to bind port 8080 because a native GeoServer install
+(from `GeoServer-2.28.2-winsetup.exe`) was already listening there;
+PostGIS's container failed to authenticate over its mapped port because a
+native PostgreSQL install (from `postgis_3_5_pg17.exe`) was already
+listening on 5432 and intercepting the connection. Both fixed by
+remapping the containers' host ports (8081, 5433) in `docker-compose.yml`,
+leaving both native installs untouched.
+
+**A third issue, while building the static PMTiles client:** Python's
+stdlib `http.server` doesn't support HTTP Range requests at all, which
+`pmtiles.js` needs — discovered by watching it fail locally with an
+explicit "check your storage backend supports HTTP Byte Serving" error.
+Fixed by writing a small custom range-serving test server
+(`client/range_server.py`) to confirm the real mechanics before trusting
+GitHub Pages' own CDN to do the same.
+
+## Open items (need your action — not something I can do from here)
+
+1. **Class-sheet registration** — area (Kothrud), service type
+   (Healthcare), OSM feature count (151), and this repo's link still need
+   to go on the instructor's class sheet; only you have access to it.
+2. **Enable GitHub Pages** in this repo's Settings → Pages, so the
+   already-committed deployment workflow actually publishes somewhere,
+   and the public URL at the top of this file can be filled in.
+3. **Q12's 5-service second-source spot-check** (Q3 as well) needs real
+   local verification — a site visit, call, or an authoritative Pune
+   healthcare directory — that isn't something to fabricate remotely.
+4. **Bonus (B1–B3)** was not attempted, per the brief's own time estimate
+   (15–20 extra hours) — everything above already represents a full,
+   real Q1–Q12 pass plus a working deployment pipeline.

@@ -1,0 +1,31 @@
+point,nearest_straight,straight_dist_m,nearest_network,network_dist_m,same_service,ratio
+0,Yash Eye Clinic and Laser Centre,357.5,Kamal Netra Rugnalaya,331.3,False,0.93
+1,City Hospital,661.8,Sathe Multispeciality Hospital,818.2,False,1.24
+2,Sunny Nursing Home,142.0,Sunny Nursing Home,150.8,True,1.06
+3,Urovision,132.6,Urovision,155.0,True,1.17
+4,Grace Skin & Hair Transplant Center,796.5,PMC - Late. Jayabai Nanasaheb Sutar Maternity Home,1083.4,False,1.36
+5,City Hospital,53.1,Shrinath Medicos,171.9,False,3.24
+6,,723.4,Shrinath Medicos,986.0,False,1.36
+7,Suryaprabha Nursing Home,123.9,Suryaprabha Nursing Home,110.0,True,0.89
+8,City Hospital,226.8,Shrinath Medicos,245.7,False,1.08
+9,Deoyani Hospital,94.9,Deoyani Hospital,155.7,True,1.64
+10,Sunny Nursing Home,255.5,"Krishna Hospital, Pune",177.9,False,0.7
+11,PMC - Late. Jayabai Nanasaheb Sutar Maternity Home,728.9,Sathe Multispeciality Hospital,968.9,False,1.33
+12,Align Diagnostic & BoneCare Polyclinic,155.4,Dr. Chavan Clinic,300.1,False,1.93
+13,,983.4,Shrinath Medicos,1534.3,False,1.56
+14,"Krishna Hospital, Pune",86.7,"Krishna Hospital, Pune",244.6,True,2.82
+15,Sunny Nursing Home,250.3,Sunny Nursing Home,334.4,True,1.34
+16,Panacea Multispeciality Clinic,319.7,Panacea Multispeciality Clinic,750.9,True,2.35
+17,Kulkarni Endo Surgery Institute and Reconstructive Urology Centre,156.5,Kulkarni Endo Surgery Institute and Reconstructive Urology Centre,247.3,True,1.58
+18,"Krishna Hospital, Pune",81.8,"Krishna Hospital, Pune",0.0,True,0.0
+19,"Krishna Hospital, Pune",114.2,Rode Hospital,166.8,False,1.46
+20,Yash Eye Clinic and Laser Centre,196.5,Urovision,363.2,False,1.85
+21,City Hospital,498.0,City Hospital,642.3,True,1.29
+22,,657.0,Shrinath Medicos,754.4,False,1.15
+23,Shrinath Medicos,565.9,Shrinath Medicos,725.9,True,1.28
+24,PMC - Late. Jayabai Nanasaheb Sutar Maternity Home,140.2,Argade Infertility and Endoscopic Surgery and Icu Center,405.7,False,2.89
+25,PMC - Late. Jayabai Nanasaheb Sutar Maternity Home,598.8,Sathe Multispeciality Hospital,801.9,False,1.34
+26,Panacea Multispeciality Clinic,345.6,Kulkarni Endo Surgery Institute and Reconstructive Urology Centre,1082.0,False,3.13
+27,Suryaprabha Nursing Home,261.9,Suryaprabha Nursing Home,276.2,True,1.05
+28,Kurtkoti Nursing Home,314.6,Kurtkoti Nursing Home,219.4,True,0.7
+29,Shrinath Medicos,320.5,City Hospital,415.9,False,1.3
