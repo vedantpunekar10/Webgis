@@ -464,11 +464,43 @@ enforces, and no partial rendering until the whole response arrives.
 ## Phase 5 — Deploy it, for free
 
 ### Q10. Image size
-Build the client image twice (full base image single-stage, multi-stage
-slim/Alpine); report both sizes; paste `docker history` for the smaller
-one; explain which layer is largest and why.
 
-_Pending: needs the MapLibre client built first._
+Two real Dockerfiles for the same client: [`client/Dockerfile`](client/Dockerfile)
+(multi-stage, `nginx:1.27-alpine` final stage) and
+[`client/Dockerfile.singlestage`](client/Dockerfile.singlestage) (single
+stage, full `node:20` base with nginx installed via `apt-get`).
+
+```
+docker images wgis-client
+TAG           SIZE
+singlestage   1.62GB
+multistage    73.6MB
+```
+
+**The multi-stage image is ~22× smaller** (73.6MB vs 1.62GB) for
+identical final content — one static HTML file served by nginx.
+
+`docker history` for the smaller (multistage) image:
+```
+COPY /src/index.html /usr/share/nginx/html/...   28.7kB
+RUN apkArch=... (nginx install via apk)           38.7MB   <- largest layer
+ENV NJS_RELEASE / NJS_VERSION                     0B
+RUN addgroup/adduser (nginx user setup)           5.36MB
+COPY docker-entrypoint scripts                    ~60kB total
+ADD alpine-minirootfs-3.21.3-x86_64.tar.gz         8.5MB
+```
+
+**The largest layer is the nginx package install itself (38.7MB)** —
+nginx plus its runtime shared libraries pulled in via `apk`. The actual
+application content (`COPY index.html`) is only 28.7kB — three orders of
+magnitude smaller than the web server that serves it. The single-stage
+image is ~22× bigger not because it contains more *application* code, but
+because it drags along `node:20`'s entire toolchain (Node.js runtime, npm,
+build-essential-adjacent tooling, apt's package cache) — none of which the
+running container ever needs, since nothing in it actually executes
+Node.js at runtime. Multi-stage builds exist exactly to throw that away:
+the `build` stage can have whatever heavy tooling it wants, and only the
+`final` stage's content ships.
 
 ### Q11. Self-healing and state
 Delete the PostGIS pod with `kubectl delete pod`; record with timestamps
