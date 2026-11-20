@@ -1,6 +1,6 @@
 # ANSWERS.md
 
-**Area:** _pending registration — see README "Open decisions"._
+**Area:** Kothrud, Pune (class-sheet registration still pending — see README "Open items").
 **Area type:** Ward(s) within a large metro (Pune) — per brief rule 3, not
 the whole city.
 **Service type:** Healthcare (`amenity=hospital`, `amenity=clinic`,

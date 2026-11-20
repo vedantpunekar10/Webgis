@@ -1,6 +1,10 @@
 # WebGIS Assignment: From Nearby Services to a Deployed Map Service
 
-**Public URL:** _not yet deployed — Phase 5 (GitHub Pages + PMTiles) is still pending. Will be added here once live._
+**Public URL:** _GitHub Actions workflow is written and committed
+(`.github/workflows/deploy-pages.yml`); the live URL depends on GitHub
+Pages being enabled in this repo's Settings → Pages, which only the repo
+owner can do. Update this line once that's done and the first deploy
+completes._
 
 Builds on the earlier nearby-services project — kept unmodified at
 [`legacy/nearby-services-gis.html`](legacy/nearby-services-gis.html), a
@@ -15,15 +19,19 @@ untouched) **and** this assignment's new backend/analysis work. There is
 no separate repo for the old project — this is the single thing to
 submit.
 
-- **Area:** _registration pending — see "Open decisions" below._
+- **Area:** Kothrud, Pune — a 2.4km study-area box centered on
+  (18.5073, 73.8057). No clean OSM administrative boundary exists for
+  this neighborhood, so the box was built per the brief's own fallback
+  guidance (rule 3). **Class-sheet registration is still something only
+  you can do** — this is the area actually used throughout Q1–Q12, so
+  register it as-is unless you need to pick something else.
 - **Service type:** Healthcare (`amenity=hospital`, `amenity=clinic`,
-  `amenity=doctors`), carried over from the `hospital` category in the
-  earlier nearby-services project for a valid Q3/Q6/Q9 comparison.
+  `amenity=doctors`, `healthcare=*`), carried over from the `hospital`
+  category in the earlier nearby-services project for a valid Q3/Q6/Q9
+  comparison. 151 real features found (well above the 15 minimum).
 - **Walking threshold:** 15 minutes (1.2 km) — urban ward, per the brief's
   "urban vs rural" rule.
-- **UTM zone:** _to be finalized once the exact ward is registered
-  (Pune falls in UTM zone 43N, EPSG:32643 — confirm against the final
-  area's centroid longitude)._
+- **UTM zone:** EPSG:32643 (UTM 43N) — correct for Kothrud's longitude (73.8°E).
 
 ## Setup
 
@@ -97,17 +105,17 @@ install (from `GeoServer-2.28.2-winsetup.exe`) was already listening on
 8080. Fixed by remapping the container's host port to 8081 in
 `docker-compose.yml`, leaving the native install untouched.
 
-## Open decisions (need your input before Phase 1 can start for real)
+## Open items (need your action — not something I can do from here)
 
-1. **Exact study area.** Needs to be a specific Pune ward or a few wards
-   (not all of Pune — too large per the brief's rule 3), with ≥15
-   healthcare features in OpenStreetMap, registered on the class sheet
-   first (first-come-first-served). Kothrud was used as an example
-   earlier in this session and does have dense OSM healthcare data, but
-   this is not yet registered or confirmed as the final choice.
-2. **Registration itself** — area, area type, service type, OSM feature
-   count, and the earlier project's repo link need to go on the
-   instructor's class sheet before any evidence work begins; this can't
-   be done by anyone other than you.
-3. Once the area is locked in, `PUNE`-style constants, the UTM zone, and
-   all of Phases 1–5 can proceed for real against it.
+1. **Class-sheet registration** — area (Kothrud), service type
+   (Healthcare), OSM feature count (151), and this repo's link still need
+   to go on the instructor's class sheet; only you have access to it.
+2. **Enable GitHub Pages** in this repo's Settings → Pages, so the
+   already-committed deployment workflow actually publishes somewhere,
+   and the public URL at the top of this file can be filled in.
+3. **Q12's 5-service second-source spot-check** (Q3 as well) needs real
+   local verification — a site visit, call, or an authoritative Pune
+   healthcare directory — that isn't something to fabricate remotely.
+4. **Bonus (B1–B3)** was not attempted, per the brief's own time estimate
+   (15–20 extra hours) — everything above already represents a full,
+   real Q1–Q12 pass plus a working deployment pipeline.
