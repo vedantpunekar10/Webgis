@@ -1,0 +1,71 @@
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: wgis-postgis
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - webgis-net
+
+  geoserver:
+    image: kartoza/geoserver:2.24.0
+    container_name: wgis-geoserver
+    environment:
+      GEOSERVER_ADMIN_USER: ${GEOSERVER_ADMIN_USER}
+      GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_ADMIN_PASSWORD}
+      INITIAL_MEMORY: 512M
+      MAXIMUM_MEMORY: 1G
+    ports:
+      - "8081:8080"
+    volumes:
+      - geoserver-data:/opt/geoserver/data_dir
+    depends_on:
+      postgis:
+        condition: service_healthy
+    networks:
+      - webgis-net
+
+  pg_tileserv:
+    image: pramsey/pg_tileserv:latest
+    container_name: wgis-pg-tileserv
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB}
+    ports:
+      - "7800:7800"
+    depends_on:
+      postgis:
+        condition: service_healthy
+    networks:
+      - webgis-net
+
+  pg_featureserv:
+    image: pramsey/pg_featureserv:latest
+    container_name: wgis-pg-featureserv
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB}
+    ports:
+      - "9000:9000"
+    depends_on:
+      postgis:
+        condition: service_healthy
+    networks:
+      - webgis-net
+
+networks:
+  webgis-net:
+    driver: bridge
+
+volumes:
+  postgis-data:
+  geoserver-data:
