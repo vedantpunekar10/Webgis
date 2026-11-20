@@ -503,14 +503,54 @@ the `build` stage can have whatever heavy tooling it wants, and only the
 `final` stage's content ships.
 
 ### Q11. Self-healing and state
-Delete the PostGIS pod with `kubectl delete pod`; record with timestamps
-from `kubectl get pods -w` how long until it's running again; does data
-survive; repeat with the PVC replaced by `emptyDir`; explain why a
-database is a StatefulSet, not a plain Deployment.
 
-_Pending: needs a local kind/minikube cluster (not yet installed — neither
-`kind` nor `minikube` were found on this machine) and the `/k8s` manifests
-written._
+Manifests: [`k8s/postgis-statefulset.yaml`](k8s/postgis-statefulset.yaml)
+(StatefulSet + PVC), [`k8s/postgis-secret.yaml`](k8s/postgis-secret.yaml),
+[`k8s/client-deployment.yaml`](k8s/client-deployment.yaml). Ran for real
+on a `kind` cluster (installed just for this — `kind create cluster
+--name webgis`, Kubernetes v1.31.2).
+
+**With the PVC (real StatefulSet):**
+```
+Inserted a marker row into a new k8s_test table.
+23:42:26.33  kubectl delete pod postgis-0
+23:42:29.84  pod phase back to Running           (~3.5s)
+23:42:30.06  pod condition Ready                  (~3.7s total)
+
+SELECT * FROM k8s_test;
+ id |             note
+----+------------------------------
+  1 | survived-the-pod-delete-test
+```
+Back up in under 4 seconds, and the data is still there.
+
+**Same test, PVC replaced by `emptyDir`** (`k8s/postgis-statefulset-emptydir-TEST-ONLY.yaml`,
+applied and torn down for this one comparison only — not part of the real deployment):
+```
+Inserted the same kind of marker row, deleted the pod, waited for Ready, then:
+SELECT * FROM k8s_test;
+psql: error: FATAL:  database "webgis" does not exist
+```
+**With `emptyDir`, not just the table but the entire database is gone**
+after recreation — more total than I expected going in. `emptyDir`'s
+storage lifecycle is tied to the *pod*, not the StatefulSet identity; a
+freshly recreated pod gets a brand-new, empty directory on whatever node
+it lands on, so Postgres's `docker-entrypoint.sh` re-runs its first-boot
+initialization from scratch, as if the container had never run before.
+
+**Why a database is a StatefulSet, not a plain Deployment:** both will
+self-heal — Kubernetes recreates a failed Pod from either in roughly the
+same few seconds, as shown above. The difference is identity and storage,
+not recovery speed. A Deployment's Pods are interchangeable; any
+replacement is as good as any other, which is exactly right for this
+project's stateless client. A StatefulSet instead gives each Pod a stable
+name (`postgis-0`, not a random suffix) and binds it to its *own*
+PersistentVolumeClaim via `volumeClaimTemplates` — so a recreated Pod
+reattaches to the *same* storage it had before, not a fresh one. That's
+the only reason the PVC version's data survived and the emptyDir
+version's didn't: the Pod's compute identity is disposable either way,
+but only the StatefulSet+PVC combination keeps the data that compute
+identity was attached to.
 
 ### Q12. Static vs server deployment
 On the public GitHub Pages URL, open the Network tab at zoom 14, find the

@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgis-emptydir-test
+spec:
+  serviceName: postgis-emptydir-test
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgis-emptydir-test
+  template:
+    metadata:
+      labels:
+        app: postgis-emptydir-test
+    spec:
+      containers:
+        - name: postgis
+          image: postgis/postgis:16-3.4
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgis-secret
+          volumeMounts:
+            - name: postgis-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgis-data
+          emptyDir: {}
