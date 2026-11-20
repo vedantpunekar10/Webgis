@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nearby — Find services around you</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12161d;
+    --panel:#1a2029;
+    --panel-2:#212836;
+    --line:#2b3342;
+    --text:#e9ecf1;
+    --muted:#8b93a3;
+    --amber:#f2a93c;
+    --teal:#3fbfa6;
+    --rose:#e0607a;
+    --violet:#8b8fe8;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;font-family:'Inter',sans-serif;background:var(--ink);color:var(--text);overflow:hidden;}
+  #map{position:absolute;inset:0;background:#0d1015;}
+
+  .brand{
+    position:absolute; top:16px; left:16px; z-index:1000;
+    display:flex; align-items:center; gap:10px;
+    background:var(--panel); border:1px solid var(--line);
+    padding:10px 16px 10px 12px; border-radius:12px;
+    box-shadow:0 8px 24px rgba(0,0,0,.35);
+  }
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--amber);
+    box-shadow:0 0 0 4px rgba(242,169,60,.18);}
+  .brand h1{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:20px;
+    letter-spacing:.02em; margin:0; text-transform:uppercase;}
+  .brand span{color:var(--muted); font-size:11px; display:block; margin-top:-2px;}
+
+  .panel{
+    position:absolute; top:16px; right:16px; z-index:1000; width:300px;
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 8px 24px rgba(0,0,0,.35); overflow:hidden;
+  }
+  .panel-head{padding:14px 16px 10px; border-bottom:1px solid var(--line);}
+  .panel-head h2{font-family:'Barlow Condensed',sans-serif; text-transform:uppercase; font-size:14px;
+    letter-spacing:.08em; color:var(--muted); margin:0 0 10px;}
+  .radius-row{display:flex; align-items:center; gap:10px;}
+  .radius-row input[type=range]{flex:1; accent-color:var(--amber);}
+  .radius-row .val{font-family:'Barlow Condensed',sans-serif; font-size:15px; width:52px; text-align:right; color:var(--amber);}
+
+  .cats{padding:12px; display:flex; flex-wrap:wrap; gap:8px;}
+  .cat-btn{
+    display:flex; align-items:center; gap:6px;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    padding:7px 11px; border-radius:999px; font-size:12.5px; cursor:pointer;
+    transition:all .15s ease; user-select:none;
+  }
+  .cat-btn .sw{width:8px;height:8px;border-radius:50%;flex:none;}
+  .cat-btn.active{border-color:transparent; color:#12161d; font-weight:600;}
+  .cat-btn:active{transform:scale(.96);}
+
+  .locate-btn{
+    width:calc(100% - 24px); margin:4px 12px 12px; padding:11px;
+    background:linear-gradient(180deg,var(--amber),#d98f22); color:#1a1200; border:none;
+    border-radius:10px; font-weight:700; font-size:13.5px; letter-spacing:.02em;
+    cursor:pointer; font-family:'Inter',sans-serif;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .locate-btn:disabled{opacity:.6; cursor:progress;}
+  .radar{width:12px;height:12px;border-radius:50%;border:2px solid #1a1200; border-top-color:transparent;
+    animation:spin 0.8s linear infinite; display:none;}
+  .locate-btn.loading .radar{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .divider{display:flex; align-items:center; gap:10px; margin:2px 12px 10px; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em;}
+  .divider::before,.divider::after{content:''; flex:1; height:1px; background:var(--line);}
+
+  .addr-row{display:flex; gap:6px; padding:0 12px 12px;}
+  .addr-row input{
+    flex:1; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    padding:9px 10px; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;
+  }
+  .addr-row input::placeholder{color:var(--muted);}
+  .addr-row button{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    padding:0 14px; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;
+  }
+  .addr-row button:hover{border-color:var(--teal); color:var(--teal);}
+
+  .err-msg{margin:0 12px 12px; padding:9px 11px; border-radius:8px; background:rgba(224,96,122,.12);
+    border:1px solid rgba(224,96,122,.4); color:var(--rose); font-size:12px; line-height:1.4; display:none;}
+
+  .results{
+    position:absolute; z-index:1000; background:var(--panel); border:1px solid var(--line);
+    box-shadow:0 8px 24px rgba(0,0,0,.35);
+    left:16px; bottom:16px; width:340px; max-height:46vh; border-radius:14px;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .results-head{padding:12px 16px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;}
+  .results-head h3{font-family:'Barlow Condensed',sans-serif; text-transform:uppercase; font-size:13px; letter-spacing:.08em; color:var(--muted); margin:0;}
+  .results-head .count{font-family:'Barlow Condensed',sans-serif; color:var(--amber); font-size:13px;}
+  .results-list{overflow-y:auto; padding:6px;}
+  .r-item{
+    display:flex; align-items:flex-start; gap:10px; padding:9px 10px; border-radius:9px; cursor:pointer;
+  }
+  .r-item:hover{background:var(--panel-2);}
+  .r-item .sw{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:none;}
+  .r-item .name{font-size:13.5px; font-weight:600; line-height:1.3;}
+  .r-item .meta{font-size:11.5px; color:var(--muted); margin-top:2px;}
+  .empty{padding:22px 16px; color:var(--muted); font-size:13px; text-align:center;}
+
+  .leaflet-popup-content-wrapper{background:var(--panel); color:var(--text); border-radius:10px;}
+  .leaflet-popup-tip{background:var(--panel);}
+  .leaflet-popup-content{font-family:'Inter',sans-serif; font-size:13px; margin:10px 12px;}
+  .leaflet-popup-content b{font-family:'Barlow Condensed',sans-serif; font-size:15px; letter-spacing:.01em;}
+  .leaflet-control-attribution{background:rgba(18,22,29,.7)!important; color:var(--muted)!important;}
+  .leaflet-control-attribution a{color:var(--amber)!important;}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:6px;}
+
+  @media (max-width:640px){
+    .panel{width:calc(100% - 32px); left:16px; right:16px; top:80px;}
+    .results{width:calc(100% - 32px); right:16px;}
+    .brand h1{font-size:17px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="brand">
+  <div class="dot"></div>
+  <div>
+    <h1>Nearby</h1>
+    <span>essential services, near you</span>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Search radius</h2>
+    <div class="radius-row">
+      <input type="range" id="radius" min="500" max="10000" step="500" value="2000">
+      <span class="val" id="radiusVal">2.0 km</span>
+    </div>
+  </div>
+  <div class="cats" id="cats"></div>
+  <button class="locate-btn" id="locateBtn">
+    <span class="radar"></span>
+    <span id="locateLabel">Use my location</span>
+  </button>
+  <div class="divider">or search a place</div>
+  <div class="addr-row">
+    <input type="text" id="addrInput" placeholder="e.g. Pimpri, Pune" />
+    <button id="addrBtn">Go</button>
+  </div>
+  <div class="err-msg" id="errMsg"></div>
+</div>
+
+<div class="results" id="resultsPanel" style="display:none;">
+  <div class="results-head">
+    <h3>Results</h3>
+    <span class="count" id="resultCount">0</span>
+  </div>
+  <div class="results-list" id="resultsList"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+// ---------- category config: OSM tags mapped to color + label ----------
+const CATEGORIES = {
+  hospital:   { label: "Hospitals",   color: "#e0607a", query: 'node["amenity"="hospital"](around:{r},{lat},{lng});node["amenity"="clinic"](around:{r},{lat},{lng});' },
+  pharmacy:   { label: "Pharmacies",  color: "#3fbfa6", query: 'node["amenity"="pharmacy"](around:{r},{lat},{lng});' },
+  fuel:       { label: "Petrol pumps",color: "#f2a93c", query: 'node["amenity"="fuel"](around:{r},{lat},{lng});' },
+  school:     { label: "Schools",     color: "#8b8fe8", query: 'node["amenity"="school"](around:{r},{lat},{lng});' },
+  college:    { label: "Colleges",    color: "#6aa9ff", query: 'node["amenity"="college"](around:{r},{lat},{lng});node["amenity"="university"](around:{r},{lat},{lng});' },
+  atm:        { label: "ATMs/Banks",  color: "#f2e23c", query: 'node["amenity"="atm"](around:{r},{lat},{lng});node["amenity"="bank"](around:{r},{lat},{lng});' },
+  police:     { label: "Police",      color: "#5ac8fa", query: 'node["amenity"="police"](around:{r},{lat},{lng});' },
+  grocery:    { label: "Grocery",     color: "#a3d977", query: 'node["shop"="supermarket"](around:{r},{lat},{lng});node["shop"="convenience"](around:{r},{lat},{lng});' },
+};
+const DEFAULT_ACTIVE = new Set(["hospital","fuel","school","pharmacy"]);
+
+let map, userMarker, userCircle;
+let markers = [];
+let userLatLng = null;
+const active = new Set(DEFAULT_ACTIVE);
+
+function initMap(lat, lng){
+  map = L.map('map', { zoomControl:false }).setView([lat,lng], 14);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution:'&copy; OpenStreetMap &copy; CARTO',
+    subdomains:'abcd', maxZoom:19
+  }).addTo(map);
+}
+
+function buildCategoryButtons(){
+  const wrap = document.getElementById('cats');
+  Object.entries(CATEGORIES).forEach(([key, cat]) => {
+    const btn = document.createElement('div');
+    btn.className = 'cat-btn' + (active.has(key) ? ' active' : '');
+    btn.style.background = active.has(key) ? cat.color : '';
+    btn.innerHTML = `<span class="sw" style="background:${cat.color}"></span>${cat.label}`;
+    btn.onclick = () => {
+      if(active.has(key)){ active.delete(key); btn.classList.remove('active'); btn.style.background=''; }
+      else { active.add(key); btn.classList.add('active'); btn.style.background = cat.color; }
+      if(userLatLng) runSearch();
+    };
+    wrap.appendChild(btn);
+  });
+}
+
+document.getElementById('radius').addEventListener('input', e=>{
+  const km = (e.target.value/1000).toFixed(1);
+  document.getElementById('radiusVal').textContent = km + ' km';
+});
+document.getElementById('radius').addEventListener('change', ()=>{ if(userLatLng) runSearch(); });
+
+function setLoading(isLoading, label){
+  const btn = document.getElementById('locateBtn');
+  btn.disabled = isLoading;
+  btn.classList.toggle('loading', isLoading);
+  document.getElementById('locateLabel').textContent = label;
+}
+
+document.getElementById('locateBtn').addEventListener('click', locateUser);
+document.getElementById('addrBtn').addEventListener('click', searchByAddress);
+document.getElementById('addrInput').addEventListener('keydown', e=>{ if(e.key==='Enter') searchByAddress(); });
+
+function showError(msg){
+  const box = document.getElementById('errMsg');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+function clearError(){
+  document.getElementById('errMsg').style.display = 'none';
+}
+
+function locateUser(){
+  clearError();
+  if(!navigator.geolocation){ showError('Geolocation is not supported by this browser. Use the address search below instead.'); return; }
+  setLoading(true, 'Locating…');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if(!map) initMap(userLatLng.lat, userLatLng.lng);
+    else map.setView([userLatLng.lat, userLatLng.lng], 14);
+    placeUserMarker();
+    runSearch();
+  }, err=>{
+    setLoading(false, 'Use my location');
+    showError('Location access denied or unavailable (' + err.message + '). Use the address search below instead.');
+  }, { enableHighAccuracy:true, timeout:10000 });
+}
+
+async function searchByAddress(){
+  clearError();
+  const q = document.getElementById('addrInput').value.trim();
+  if(!q){ showError('Type a place name or address first.'); return; }
+  setLoading(true, 'Searching place…');
+  try{
+    const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if(!data.length){
+      showError('Could not find "' + q + '". Try a more specific place name.');
+      setLoading(false, 'Use my location');
+      return;
+    }
+    userLatLng = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    if(!map) initMap(userLatLng.lat, userLatLng.lng);
+    else map.setView([userLatLng.lat, userLatLng.lng], 14);
+    placeUserMarker();
+    runSearch();
+  }catch(e){
+    setLoading(false, 'Use my location');
+    showError('Place search failed. This preview sandbox may be blocking the network request — try downloading this file and opening it directly in your browser, where external map APIs load normally.');
+  }
+}
+
+function placeUserMarker(){
+  if(userMarker) map.removeLayer(userMarker);
+  if(userCircle) map.removeLayer(userCircle);
+  const icon = L.divIcon({
+    className:'', iconSize:[18,18],
+    html:`<div style="width:16px;height:16px;border-radius:50%;background:#f2a93c;border:3px solid #12161d;box-shadow:0 0 0 5px rgba(242,169,60,.28);"></div>`
+  });
+  userMarker = L.marker([userLatLng.lat, userLatLng.lng], {icon, zIndexOffset:1000}).addTo(map);
+}
+
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+async function runSearch(){
+  if(!userLatLng) return;
+  clearError();
+  setLoading(true, 'Searching…');
+  markers.forEach(m=>map.removeLayer(m));
+  markers = [];
+
+  const radius = document.getElementById('radius').value;
+  const cats = [...active];
+  if(cats.length === 0){
+    setLoading(false, 'Use my location');
+    renderResults([]);
+    return;
+  }
+
+  let body = cats.map(k => CATEGORIES[k].query
+      .replaceAll('{r}', radius).replaceAll('{lat}', userLatLng.lat).replaceAll('{lng}', userLatLng.lng)
+    ).join('');
+  const q = `[out:json][timeout:25];(${body});out center;`;
+
+  try{
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method:'POST', body: 'data=' + encodeURIComponent(q)
+    });
+    const data = await res.json();
+    const items = data.elements.map(el=>{
+      const catKey = cats.find(k => matchesCategory(el, k));
+      return {
+        id: el.id,
+        lat: el.lat, lng: el.lon,
+        name: el.tags?.name || CATEGORIES[catKey]?.label.replace(/s$/,'') || 'Unnamed',
+        cat: catKey,
+        dist: haversine(userLatLng.lat, userLatLng.lng, el.lat, el.lon)
+      };
+    }).sort((a,b)=>a.dist-b.dist);
+
+    items.forEach(it=>{
+      const color = CATEGORIES[it.cat]?.color || '#fff';
+      const icon = L.divIcon({
+        className:'', iconSize:[14,14],
+        html:`<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #12161d;"></div>`
+      });
+      const mk = L.marker([it.lat, it.lng], {icon}).addTo(map);
+      mk.bindPopup(`<b>${escapeHtml(it.name)}</b><br>${CATEGORIES[it.cat]?.label || ''} · ${formatDist(it.dist)}`);
+      it.marker = mk;
+      markers.push(mk);
+    });
+
+    renderResults(items);
+  }catch(e){
+    console.error('Overpass search failed:', e);
+    showError('Search failed — either the map data service is busy, or (if you\'re viewing this inside Claude\'s chat preview) the sandbox is blocking calls to overpass-api.de. Download this file and open it directly in your browser to confirm — it should work there.');
+    renderResults([]);
+  }finally{
+    setLoading(false, 'Refresh location');
+  }
+}
+
+function matchesCategory(el, key){
+  const t = el.tags || {};
+  const map = {
+    hospital: t.amenity==='hospital'||t.amenity==='clinic',
+    pharmacy: t.amenity==='pharmacy',
+    fuel: t.amenity==='fuel',
+    school: t.amenity==='school',
+    college: t.amenity==='college'||t.amenity==='university',
+    atm: t.amenity==='atm'||t.amenity==='bank',
+    police: t.amenity==='police',
+    grocery: t.shop==='supermarket'||t.shop==='convenience',
+  };
+  return !!map[key];
+}
+
+function formatDist(m){
+  return m < 1000 ? Math.round(m) + ' m' : (m/1000).toFixed(1) + ' km';
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderResults(items){
+  const panel = document.getElementById('resultsPanel');
+  const list = document.getElementById('resultsList');
+  document.getElementById('resultCount').textContent = items.length;
+  list.innerHTML = '';
+  panel.style.display = 'flex';
+
+  if(items.length === 0){
+    list.innerHTML = `<div class="empty">No results in range. Try a larger radius or more categories.</div>`;
+    return;
+  }
+  items.slice(0, 60).forEach(it=>{
+    const div = document.createElement('div');
+    div.className = 'r-item';
+    div.innerHTML = `<span class="sw" style="background:${CATEGORIES[it.cat]?.color}"></span>
+      <div><div class="name">${escapeHtml(it.name)}</div>
+      <div class="meta">${CATEGORIES[it.cat]?.label || ''} · ${formatDist(it.dist)} away</div></div>`;
+    div.onclick = () => { map.setView([it.lat, it.lng], 17); it.marker.openPopup(); };
+    list.appendChild(div);
+  });
+}
+
+buildCategoryButtons();
+initMap(28.6139, 77.2090); // fallback center until we get real location
+</script>
+</body>
+</html>

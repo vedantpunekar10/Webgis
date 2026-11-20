@@ -2,11 +2,18 @@
 
 **Public URL:** _not yet deployed — Phase 5 (GitHub Pages + PMTiles) is still pending. Will be added here once live._
 
-Builds on the earlier nearby-services project (`nearby-services-gis.html`,
-a single-file Leaflet + Overpass app), rebuilding it into a provider/analyst
+Builds on the earlier nearby-services project — kept unmodified at
+[`legacy/nearby-services-gis.html`](legacy/nearby-services-gis.html), a
+single-file Leaflet + Overpass app — rebuilding it into a provider/analyst
 Web GIS backed by PostGIS, GeoServer, pg_tileserv and pg_featureserv —
 answering: which residents of the study area cannot reach the service on
 foot within a reasonable time, and why?
+
+**This one repository is both**: the earlier nearby-services project
+(preserved as-is in `legacy/`, for the Q3/Q6/Q9 comparisons that need it
+untouched) **and** this assignment's new backend/analysis work. There is
+no separate repo for the old project — this is the single thing to
+submit.
 
 - **Area:** _registration pending — see "Open decisions" below._
 - **Service type:** Healthcare (`amenity=hospital`, `amenity=clinic`,
