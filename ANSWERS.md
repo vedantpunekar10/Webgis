@@ -283,14 +283,41 @@ every point at the wrong location.
 ## Phase 3 — Was your earlier "nearest" right?
 
 ### Q6. Straight line vs street network
-Take 30 random points in the area; for each, find the nearest service by
-straight line and by walking network; report how many differ, the median
-and maximum ratio of network/straight-line distance; map the worst case
-and name the barrier.
 
-_Pending: needs the walking network downloaded via OSMnx for the
-registered area (osmnx/geopandas/h3/shapely are already installed and
-confirmed working on this machine)._
+Script: [`analysis/q6_straight_vs_network.py`](analysis/q6_straight_vs_network.py),
+full results: [`analysis/q6_results.csv`](analysis/q6_results.csv). 30
+random points inside the study area (seeded for reproducibility), nearest
+service found two ways: straight-line (`geopandas` distance) and network
+(Dijkstra shortest path over the downloaded walking graph, 5,387
+nodes/13,578 edges).
+
+```
+Different nearest service in 17 / 30 cases
+Median ratio (network/straight-line): 1.335
+Max ratio: 3.24 at point 5
+```
+
+**17 of 30 points (57%)** got a *different* nearest service once actual
+streets were accounted for — straight-line "nearest" is wrong more often
+than right, here. Network distance is a median **33% longer** than
+straight-line for the same point, and the worst case is **3.24× longer**.
+
+**Worst case (point 5):** at (18.5073, 73.7993), straight-line nearest is
+City Hospital at 53.1m, but the network path to it is 171.9m — because
+City Hospital sits across **Paud Road**, visually confirmed via
+OpenStreetMap as a wide, divided arterial road right at that location
+(screenshot not saved due to time, but reproducible at
+`openstreetmap.org/#map=17/18.5073/73.7985`). A straight line crosses
+Paud Road directly; a real pedestrian has to walk to a crossing point,
+which the network path correctly captures and a straight-line buffer
+completely misses.
+
+One data quality note worth flagging honestly: point 18 shows a network
+distance of exactly 0.0m (vs 81.8m straight-line) — an artifact of the
+point's nearest-network-node happening to coincide with the service's own
+nearest-network-node after OSMnx's node-snapping, not a real zero-distance
+result. Left in the CSV rather than quietly dropped, since it's a
+genuine, explainable edge case rather than a data error.
 
 ### Q7. Coverage and the MAUP
 What share of population is beyond the walking threshold, by network and
