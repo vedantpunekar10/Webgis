@@ -1,0 +1,1029 @@
+/* Colour/spacing tokens used throughout the stylesheet — change the look of
+   the whole app by editing these rather than hunting down individual rules. */
+:root {
+  --bg: #0f172a;
+  --panel: #111827;
+  --panel-2: #1a2236;
+  --border: #2a3550;
+  --text: #e5e9f5;
+  --text-dim: #94a3b8;
+  --accent: #22c55e;
+  --accent-2: #38bdf8;
+  --danger: #f87171;
+  --radius: 10px;
+  /* "Inter" (loaded in index.html <head>) replaces the plain OS default font
+     used before — one swap, applied everywhere via the html/body rule below. */
+  --font-family: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+/* The `hidden` attribute must always win over a component's own `display`
+   rule below (e.g. `.loader { display: flex }`) — without this, elements
+   that are supposed to be toggled off via `.hidden = true` in JS stay
+   visibly on screen forever, because author CSS of equal-or-higher
+   specificity overrides the browser's built-in `[hidden]{display:none}`. */
+[hidden] { display: none !important; }
+
+/* Respect the OS-level "reduce motion" preference: kill every animation and
+   collapse transitions to instant, without having to special-case each rule. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Page shell ---------- */
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: var(--font-family);
+  background: var(--bg);
+  color: var(--text);
+}
+/* Buttons/inputs/selects don't inherit the page font by default in most
+   browsers (they use the OS form-control font instead) — without this rule,
+   every button and text field in the app would still look like the old font
+   even after the swap above. */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+/* Full-height column: top bar, then the sidebar+map body filling the rest.
+   The background is a slow-shifting gradient — not flat navy — so the
+   glass panels layered on top (below) have something alive to show through. */
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0b1120, #141b35, #0f1b2e, #0b1120);
+  background-size: 300% 300%;
+  animation: bg-drift 20s ease infinite;
+}
+@keyframes bg-drift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ---------- Top bar ---------- */
+/* Header row: brand on the left, search box + location controls on the right.
+   Frosted glass over the drifting body gradient, with a subtle animated
+   "speed line" texture (::before below) to nod at the app's ride theme. */
+/* No `overflow: hidden` here (deliberately) — the search suggestions
+   dropdown is a child of .topbar and needs to extend past its bottom edge
+   onto the map to be visible at all. The decorative streak effect below
+   clips itself instead, in its own layer, so nothing else in the header
+   gets cut off by it. */
+/* `backdrop-filter` (for the glass effect) makes an element create its own
+   CSS stacking context — without an explicit z-index here, that traps the
+   search-suggestions dropdown's z-index inside the header's own context, so
+   the map (painted after .topbar in the page) still covers it regardless of
+   how high the dropdown's own z-index is set. 1500 is deliberately higher
+   than every floating map element (loader/route-bar/SOS at 1000, the map's
+   own darkening overlay at 450, Leaflet's controls around 1000), so the
+   header — dropdown included — always wins. */
+.topbar {
+  position: relative;
+  z-index: 1500;
+  background: rgba(17, 24, 39, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 18px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.15);
+  flex-wrap: wrap;
+}
+.topbar > * {
+  position: relative;
+  z-index: 1;
+}
+/* Faint diagonal streaks drifting across the header — a restrained nod to
+   motion/speed rather than a literal illustration. This wrapper is exactly
+   the header's size and clips (overflow: hidden) just its own oversized
+   ::before pattern below — unlike clipping .topbar itself, this can't
+   accidentally cut off other header content like the suggestions dropdown. */
+.topbar-fx {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+}
+.topbar-fx::before {
+  content: "";
+  position: absolute;
+  inset: -20% -10%;
+  background: repeating-linear-gradient(
+    100deg,
+    transparent 0px,
+    transparent 46px,
+    rgba(56, 189, 248, 0.06) 46px,
+    rgba(56, 189, 248, 0.06) 48px
+  );
+  animation: speed-lines 5s linear infinite;
+}
+@keyframes speed-lines {
+  from { transform: translateX(0); }
+  to { transform: translateX(-200px); }
+}
+
+/* "🏍️ RideStop" logo block. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand-icon { font-size: 22px; }
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand h1 {
+  font-size: 17px;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: text-shimmer 5s linear infinite;
+}
+@keyframes text-shimmer {
+  to { background-position: -200% center; }
+}
+.brand-tagline {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* Search input + its Search/My Location/Live buttons, in the top bar. */
+.search-box {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+  max-width: 640px;
+  min-width: 260px;
+}
+
+/* Positions the suggestions dropdown relative to its input. */
+.search-input-wrap {
+  position: relative;
+  flex: 1;
+}
+
+#place-search {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+/* A border-color change alone is a fairly subtle focus cue — the glow ring
+   makes "this field is focused" unambiguous for keyboard users too. */
+#place-search:focus { border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25); }
+
+/* Autocomplete dropdown shared by the top search box and the Best Route
+   destination box — a floating card of <li> rows under its input. */
+.suggestions-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  background: rgba(26, 34, 54, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  z-index: 1200;
+  max-height: 260px;
+  overflow-y: auto;
+  animation: pop-in-left 0.18s ease-out; /* fade+scale in whenever JS un-hides it */
+  transform-origin: top center;
+}
+.suggestions-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 9px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  cursor: pointer;
+  color: var(--text);
+}
+/* `.active` = the row currently highlighted via arrow-key navigation. */
+.suggestions-list li:hover,
+.suggestions-list li.active {
+  background: rgba(56, 189, 248, 0.15);
+}
+.suggestion-icon { flex-shrink: 0; font-size: 14px; }
+/* Highlights the substring that matched the typed query (see highlightMatch() in script.js). */
+.suggestion-label mark {
+  background: rgba(34, 197, 94, 0.35);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* Search / My Location / Live buttons — same base look, individual states below. */
+#search-btn, #locate-btn, #track-btn {
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+#search-btn:hover, #locate-btn:hover, #track-btn:hover {
+  background: #202b45;
+  border-color: var(--accent-2);
+}
+#search-btn:active, #locate-btn:active, #track-btn:active { transform: scale(0.94); } /* press feedback */
+/* "Live" turns red while continuous GPS tracking (watchPosition) is on. */
+#track-btn.active {
+  background: rgba(248, 113, 113, 0.18);
+  border-color: var(--danger);
+  color: #fecaca;
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.4);
+}
+
+/* ---------- Layout ---------- */
+/* Sidebar (left) + map (right), filling all remaining height under the top bar. */
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Scrollable column of feature panels: Categories, Search radius, Best
+   Route, Location Info, Emergency SOS, Ride Together, Results. */
+.sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  background: rgba(17, 24, 39, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-right: 1px solid rgba(56, 189, 248, 0.12);
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------- Sidebar tabs ---------- */
+/* Splits the sidebar's 8 panels into 3 screens (Explore / Routes / Safety)
+   so only 2-4 show at once instead of one long scrolling stack — see the
+   tab-switching logic in script.js. Sticky so it stays reachable while the
+   active tab's panels scroll underneath it. */
+.sidebar-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  background: rgba(15, 21, 36, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 4px;
+  margin: -14px -14px 0 -14px; /* pulls flush with the sidebar's own edges/top, above the first panel's margin */
+  width: calc(100% + 28px);
+}
+.sidebar-tab-btn {
+  position: relative;
+  z-index: 1; /* sits above the sliding indicator below, so its text stays readable */
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 4px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.sidebar-tab-btn:hover { color: var(--text); }
+.sidebar-tab-btn.active { color: var(--text); }
+
+/* The highlight pill behind the active tab. Its own `left`/`width` are set
+   in JS (updateSidebarTabIndicator() in script.js) to match whichever
+   button is active, and this transition is what makes it visibly slide
+   between tabs instead of jumping — the motion itself is pure CSS, the
+   position is the only thing JS computes. */
+.sidebar-tab-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: 0;
+  border-radius: 7px;
+  background: rgba(56, 189, 248, 0.18);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+  transition: left 0.25s ease, width 0.25s ease;
+}
+
+.sidebar-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 14px; /* room below the sticky tab bar */
+}
+
+/* Generic card used for every sidebar section — semi-transparent (the
+   sidebar's own blur does the "frosting"), with a soft gradient-tinted
+   border so panels read as glass, not flat boxes. */
+.panel {
+  background: rgba(26, 34, 54, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius);
+  padding: 12px;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  animation: panel-enter 0.4s ease-out backwards;
+}
+.panel:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(56, 189, 248, 0.1);
+}
+/* Staggers each panel's entrance — replays every time a tab becomes active
+   again (not just once on page load), since switching tabs re-triggers the
+   animation on newly-displayed elements the same way the initial load does. */
+.sidebar-panels > .panel:nth-child(1) { animation-delay: 0.02s; }
+.sidebar-panels > .panel:nth-child(2) { animation-delay: 0.06s; }
+.sidebar-panels > .panel:nth-child(3) { animation-delay: 0.1s; }
+.sidebar-panels > .panel:nth-child(4) { animation-delay: 0.14s; }
+@keyframes panel-enter {
+  from { opacity: 0; transform: translateX(-14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.panel h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  margin: 0 0 10px 0;
+  font-weight: 600;
+}
+
+/* ---------- Category chips ---------- */
+/* The "Categories" panel's 2-column grid of toggleable service types. */
+.category-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.category-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #0f1524;
+  cursor: pointer;
+  font-size: 12.5px;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+/* Selected-category styling, with a quick "pop" (chip-select) the moment it's turned on. */
+.category-chip.active {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: var(--accent);
+  color: #d1fae5;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.35);
+  animation: chip-select 0.25s ease-out;
+}
+.category-chip:active { transform: scale(0.95); }
+@keyframes chip-select {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.category-chip .cat-icon { font-size: 15px; }
+
+/* ---------- Quick Find buttons ---------- */
+/* The "⚡ Quick Find Nearest" panel's one-tap shortcuts — same 2-column grid
+   as the category chips above, but cyan-accented (not green) since tapping
+   one runs an action immediately instead of toggling a selection. */
+.quick-find-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.quick-find-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #0f1524;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12.5px;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+}
+.quick-find-btn:hover {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: var(--accent-2);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+}
+.quick-find-btn:active { transform: scale(0.95); }
+.quick-find-btn .cat-icon { font-size: 15px; }
+
+/* ---------- Radius slider ---------- */
+/* The "Search radius" panel's <input type="range"> + live "X km" label. */
+.radius-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#radius-slider { flex: 1; accent-color: var(--accent-2); }
+#radius-value {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  min-width: 46px;
+  text-align: right;
+}
+
+/* ---------- Primary action button ---------- */
+/* Shared by "Find Nearby", "Get Best Route", and "Start/Stop Sharing". */
+.primary-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: none;
+  background: linear-gradient(135deg, var(--accent), #16a34a);
+  color: #06210f;
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s, background 0.25s, box-shadow 0.2s;
+}
+.primary-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px rgba(34, 197, 94, 0.45);
+}
+.primary-btn:active:not(:disabled) { transform: scale(0.97); }
+.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* "Stop Sharing" state (Ride Together): green → red to signal it's now a stop action. */
+.primary-btn.active {
+  background: linear-gradient(135deg, var(--danger), #b91c1c);
+  color: #fff;
+}
+.primary-btn.active:hover:not(:disabled) { box-shadow: 0 4px 18px rgba(248, 113, 113, 0.45); }
+
+/* Generic text input, used by the destination/ride-code/ride-name/SOS-contact fields. */
+.text-input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+.text-input:focus { border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25); }
+.text-input:disabled { opacity: 0.6; } /* fields are locked while a ride session is active */
+
+/* ---------- Ride Together panel ---------- */
+/* Ride Code input + its 🎲 random-code-generator button, side by side. */
+.ride-row { display: flex; gap: 6px; margin-bottom: 10px; }
+.ride-row .text-input { flex: 1; }
+#ride-code-copy-btn { margin-top: 0; margin-bottom: 10px; }
+#ride-code-generate {
+  flex-shrink: 0;
+  padding: 0 11px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+}
+#ride-code-generate:hover { background: #202b45; border-color: var(--accent-2); }
+
+#ride-name { margin-bottom: 10px; }
+
+/* The "uses a public relay" warning text at the bottom of the panel. */
+.privacy-note {
+  color: #fbbf24;
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+/* List of currently-connected riding buddies (hidden entirely when empty). */
+.ride-friends-list {
+  margin-top: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+/* ---------- Emergency SOS ---------- */
+/* Sidebar panel for setting the emergency contact (red-tinted border marks it as safety-related). */
+.sos-panel { border-color: rgba(248, 113, 113, 0.4); }
+
+#sos-name { margin-top: 10px; margin-bottom: 8px; }
+#sos-phone { margin-bottom: 4px; }
+
+/* The floating 🆘 button, fixed to the bottom-left of the map at all times. */
+#sos-btn {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  z-index: 1000;
+  border: none;
+  border-radius: 30px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, var(--danger), #b91c1c);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+  animation: sos-breathe 2.4s ease-in-out infinite; /* continuous glow so it reads as a "live" safety control */
+}
+#sos-btn:hover { filter: brightness(1.1); }
+#sos-btn:active { transform: scale(0.94); }
+@keyframes sos-breathe {
+  0%, 100% { box-shadow: 0 4px 16px rgba(185, 28, 28, 0.5); }
+  50% { box-shadow: 0 4px 26px rgba(185, 28, 28, 0.85); }
+}
+
+/* Confirmation/error message that appears briefly above the SOS button after it's tapped. */
+.sos-toast {
+  position: absolute;
+  bottom: 60px;
+  left: 14px;
+  z-index: 1000;
+  max-width: min(360px, calc(100% - 28px));
+  background: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--danger);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+  animation: pop-in-left 0.25s ease-out;
+}
+
+/* Small status line under most panels (e.g. #status-hint, #ride-status). */
+.hint {
+  margin: 10px 0 0 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.hint.error { color: var(--danger); }
+.hint.success { color: var(--accent); }
+
+/* Secondary button — currently just "🔗 Copy Shareable Link". */
+.secondary-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.secondary-btn:hover { background: #202b45; border-color: var(--accent-2); }
+.secondary-btn:active { transform: scale(0.97); }
+
+/* ---------- Location info panel ---------- */
+/* Address / weather / elevation panel, revealed the first time a location is set. */
+.location-info-panel { animation: result-item-in 0.3s ease-out; }
+.location-info-panel .info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.location-info-panel .info-icon { flex-shrink: 0; }
+
+/* ---------- Results panel ---------- */
+/* Takes up remaining sidebar height so its list can scroll independently. */
+.results-panel { flex: 1; display: flex; flex-direction: column; min-height: 120px; }
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.results-header h2 { margin: 0; }
+.count-badge {
+  background: var(--accent-2);
+  color: #04263a;
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: 11px;
+  margin-left: 6px;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+}
+
+/* 🏍️/🚴/🚶 travel-mode segmented control, next to the Results heading —
+   controls the OSRM profile used for every "Directions"/"Best Route" request. */
+.mode-toggle {
+  display: flex;
+  gap: 3px;
+  background: #0f1524;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+}
+.mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s, color 0.2s, transform 0.1s;
+}
+.mode-btn.active {
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--text);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+.mode-btn:active { transform: scale(0.88); }
+
+/* Shared list styling for both the nearby-places results and the Ride
+   Together friends list (both render <li class="result-item">). */
+.results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-item {
+  padding: 8px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #0f1524;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  animation: result-item-in 0.3s ease-out backwards; /* fade/slide in as results are rendered; `backwards` + a per-item `animation-delay` (set in script.js) staggers the list */
+}
+.result-item:hover { background: #182238; border-color: var(--accent-2); transform: translateX(2px); }
+.result-item:active { transform: scale(0.98); }
+@keyframes result-item-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.result-item .r-title {
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.result-item .r-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.result-item .r-meta-text { flex: 1; }
+
+/* Per-row "🧭" button that requests directions without opening the item's popup. */
+.directions-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: #0f1524;
+  color: var(--accent-2);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.directions-btn:hover { background: rgba(56, 189, 248, 0.15); border-color: var(--accent-2); }
+.directions-btn:active { transform: scale(0.9); }
+
+/* ---------- Map ---------- */
+.map-wrap {
+  flex: 1;
+  position: relative; /* lets the loader/route-bar/SOS button position themselves absolutely over the map */
+}
+#map {
+  height: 100%;
+  width: 100%;
+  background: #0b1120;
+}
+/* The default OpenStreetMap tiles are bright/light, which used to make the
+   map look like an unstyled widget bolted onto the dark sidebar. This is a
+   single semi-transparent gradient laid on top (darker at the edges, a
+   faint cyan tint at the top) so the map reads as part of the same dark
+   theme, without changing the map data/tiles themselves. `pointer-events:
+   none` means it's purely visual — clicking/dragging the map still works
+   normally underneath it. */
+.map-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 450;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 35%, rgba(11, 17, 32, 0.4) 100%),
+    linear-gradient(180deg, rgba(56, 189, 248, 0.05), transparent 20%);
+}
+
+/* Shared "appear" animation for floating overlays — plays whenever the
+   element flips from `[hidden]` (display:none) to displayed, since a CSS
+   animation always (re)starts the moment its element becomes renderable. */
+@keyframes pop-in {
+  from { opacity: 0; transform: translate(-50%, -6px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes pop-in-left {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* "Fetching nearby places…" pill, top-center of the map during a Find Nearby search. */
+.loader {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(17, 24, 39, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  animation: pop-in 0.25s ease-out;
+}
+/* Loader icon: a small spoked wheel (on-brand with the bike-rider markers
+   below) instead of a generic ring spinner. */
+.spinner-wheel svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--accent-2);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  animation: spin 0.8s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Route info bar: distance/ETA pill, bottom-center of the map while a route is drawn. */
+@keyframes pop-in-bottom {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.route-bar {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--accent-2);
+  padding: 8px 10px 8px 16px;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.5px;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4), 0 0 16px rgba(56, 189, 248, 0.2);
+  max-width: 90%;
+  transition: border-color 0.2s, box-shadow 0.2s; /* smooths the colour change between "loading" and "error" states */
+  animation: pop-in-bottom 0.25s ease-out;
+}
+.route-bar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#route-bar-close {
+  flex-shrink: 0;
+  border: none;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  border-radius: 50%;
+  width: 22px; height: 22px;
+  cursor: pointer;
+  font-size: 12px;
+}
+#route-bar-close:hover { background: var(--danger); color: #fff; }
+
+/* Leaflet layer-switcher, dark-themed */
+/* Recolours Leaflet's own basemap-switcher control (Streets/Satellite) to match the app's dark theme. */
+.leaflet-control-layers {
+  background: var(--panel-2) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+}
+.leaflet-control-layers-toggle {
+  filter: invert(1) brightness(1.6);
+}
+.leaflet-control-layers-expanded { padding: 10px 12px !important; }
+.leaflet-control-layers label { font-size: 12.5px; margin-bottom: 4px; }
+.leaflet-control-layers-separator { border-color: var(--border) !important; }
+
+/* Leaflet's built-in scale bar, recoloured to match the dark theme. */
+.leaflet-control-scale-line {
+  background: rgba(17, 24, 39, 0.72) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border) !important;
+  border-top: none !important;
+  color: var(--text) !important;
+  padding: 1px 6px !important;
+  font-size: 11px !important;
+}
+
+/* Live lat/lon under the cursor (set on map "mousemove" in script.js), sitting
+   just above the scale bar in the same bottom-right corner. */
+.coord-readout {
+  position: absolute;
+  bottom: 40px;
+  right: 10px;
+  z-index: 1000;
+  background: rgba(17, 24, 39, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  pointer-events: none;
+}
+@media (max-width: 640px) {
+  .coord-readout { display: none; } /* not enough room on small screens; scale bar alone is enough */
+}
+
+/* Leaflet popup theming */
+/* Recolours Leaflet's default marker-popup chrome to match the dark theme;
+   the rest (.popup-meta, .popup-rating, .popup-directions-btn) styles the
+   actual content built by buildPopupContent() in script.js. */
+.leaflet-popup-content-wrapper {
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 8px;
+}
+.leaflet-popup-tip { background: var(--panel-2); }
+.leaflet-popup-content b { color: var(--accent-2); }
+.popup-meta { font-size: 11.5px; color: var(--text-dim); margin-top: 4px; }
+.popup-rating { font-size: 11.5px; margin-top: 6px; color: #fbbf24; }
+.popup-rating-none { color: var(--text-dim); font-style: italic; }
+.popup-directions-btn {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  background: #0f1524;
+  color: var(--accent-2);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.popup-directions-btn:hover { background: rgba(56, 189, 248, 0.15); }
+
+/* ---------- Custom markers ---------- */
+/* A plain emoji "pin" used for every nearby-places search result (⛽, 🍽️, 🏨, …). */
+.emoji-pin {
+  font-size: 20px;
+  text-align: center;
+  line-height: 1;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6));
+}
+/* The rider's own position: a small cyan dot that gently "breathes" to read as live. */
+.user-pin {
+  width: 18px; height: 18px;
+  background: var(--accent-2);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(56,189,248,0.35);
+  /* Both animations combined in one declaration — `animation` is a shorthand,
+     so a second class like `.marker-drop-in` setting it separately would
+     silently replace this instead of layering, killing the live pulse. */
+  animation:
+    marker-drop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards,
+    live-pulse 2.6s ease-in-out 0.45s infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(56,189,248,0.35); }
+  50% { box-shadow: 0 0 0 8px rgba(56,189,248,0.15); }
+}
+
+/* Every marker drops in from above with a little overshoot, instead of
+   just popping into existence — gives search results a sense of "landing". */
+.marker-drop-in {
+  animation: marker-drop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+@keyframes marker-drop {
+  from { opacity: 0; transform: translateY(-16px) scale(0.5); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Route polyline fades in once drawn, rather than snapping onto the map */
+.route-line { animation: route-fade-in 0.5s ease-out; }
+@keyframes route-fade-in {
+  from { opacity: 0; }
+  to { opacity: 0.85; }
+}
+
+/* Ride Together: a friend's live marker, visually distinct from POI pins
+   (emoji-pin) and from your own position (user-pin). */
+.friend-pin {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: #f472b6;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 4px rgba(244, 114, 182, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+  transition: opacity 0.3s, filter 0.3s;
+}
+/* No position update in 30s+ (see RIDE_STALE_MS in script.js). */
+.friend-pin.stale { opacity: 0.4; filter: grayscale(1); }
+/* This friend has an active SOS flag — turns the marker red and pulses it. */
+.friend-pin.sos {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.45);
+  animation: sos-pulse 1s ease-in-out infinite;
+}
+@keyframes sos-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.45); }
+  50% { box-shadow: 0 0 0 9px rgba(248, 113, 113, 0.2); }
+}
+
+/* Matching highlight for an SOS friend's row in the sidebar list. */
+.ride-friend-item.ride-friend-sos {
+  border-color: var(--danger);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+/* Scrollbars */
+.sidebar::-webkit-scrollbar, .results-list::-webkit-scrollbar { width: 8px; }
+.sidebar::-webkit-scrollbar-thumb, .results-list::-webkit-scrollbar-thumb {
+  background: var(--border); border-radius: 8px;
+}
+
+/* Responsive */
+/* Below ~tablet width, stack the sidebar above the map instead of beside it. */
+@media (max-width: 820px) {
+  .app-body { flex-direction: column; }
+  .sidebar { width: 100%; max-height: 46vh; border-right: none; border-bottom: 1px solid var(--border); }
+}

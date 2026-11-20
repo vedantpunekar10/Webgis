@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RideStop — Petrol, Food & Stays for Riders | Pune</title>
+
+<!-- "Inter" — a widely-used, professional UI typeface (GitHub, Figma, etc.)
+     — replaces the plain default system font used before. Simple, one-line
+     change: swap the font, see --font-family in style.css. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+<!-- Leaflet: the map-rendering library. Its CSS must load before our own
+     style.css so our overrides (dark-themed popups/controls) win. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="style.css?v=28" />
+<!-- mqtt.js: the MQTT-over-WebSocket client used by the "Ride Together"
+     live location-sharing feature (see script.js). Loaded in <head> so it's
+     ready before script.js runs at the end of <body>. -->
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+</head>
+<body>
+
+<!-- Top bar: brand on the left, place search + location controls on the right. -->
+<header class="topbar">
+  <!-- Decorative animated background streaks, in their own clipped layer —
+       kept separate from .topbar itself so this is the only thing clipped;
+       the search suggestions dropdown below needs to extend past the
+       header's bottom edge onto the map, which a clip on .topbar would
+       otherwise cut off. -->
+  <div class="topbar-fx" aria-hidden="true"></div>
+  <div class="brand">
+    <span class="brand-icon">🏍️</span>
+    <div class="brand-text">
+      <h1>Ride stop</h1>
+      <span class="brand-tagline">Fuel, food &amp; stays for your ride</span>
+    </div>
+  </div>
+  <div class="search-box">
+    <!-- Place search box. The <ul> below it is filled in by script.js with
+         Pune-scoped Nominatim autocomplete suggestions as you type. -->
+    <div class="search-input-wrap">
+      <input type="text" id="place-search" aria-label="Search a place, locality, or address in Pune" placeholder="Search a place, locality, or address in Pune…" autocomplete="off" />
+      <ul id="search-suggestions" class="suggestions-list" hidden></ul>
+    </div>
+    <button id="search-btn" title="Search" aria-label="Search">🔍</button>
+    <button id="locate-btn" title="Use my current location" aria-label="Use my current location">🎯</button>
+    <button id="track-btn" title="Track my location live" aria-label="Track my location live">📡 Live</button>
+  </div>
+</header>
+
+<!-- Sidebar (feature panels) + map, side by side below the top bar. -->
+<div class="app-body">
+  <aside class="sidebar">
+
+    <!-- Sidebar section switcher: groups the 8 panels into 3 screens so you
+         see 2-4 at a time instead of scrolling past all of them at once.
+         Tab-switching itself is handled in script.js (no feature logic
+         changed here — every panel below keeps its original id). -->
+    <div class="sidebar-tabs" id="sidebar-tabs" role="tablist">
+      <!-- Sliding highlight pill — positioned behind whichever button is
+           active by updateSidebarTabIndicator() in script.js. -->
+      <div class="sidebar-tab-indicator" id="sidebar-tab-indicator"></div>
+      <button class="sidebar-tab-btn active" data-tab="explore">🗺️ Explore</button>
+      <button class="sidebar-tab-btn" data-tab="routes">🧭 Routes</button>
+      <button class="sidebar-tab-btn" data-tab="safety">🆘 Safety</button>
+    </div>
+
+    <div class="sidebar-panels" id="tab-explore">
+      <!-- Which kinds of rider stops to search for (petrol, food, stays, etc.) —
+           the chip grid itself is rendered by renderCategoryChips() in script.js.
+           Search radius is a fixed 2 km (see DEFAULT_SEARCH_RADIUS_METERS in
+           script.js) rather than a user-adjustable control — kept simple on
+           purpose for a quick "what's nearby right now" search. -->
+      <section class="panel">
+        <h2>Categories</h2>
+        <div class="category-grid" id="category-grid">
+          <!-- filled by JS -->
+        </div>
+        <button id="find-btn" class="primary-btn">Find Nearby (within 2 km)</button>
+        <p class="hint" id="status-hint">Set your location, then find petrol pumps, food, and stays nearby.</p>
+      </section>
+
+      <!-- One-tap shortcuts to the single nearest place of a given type —
+           skips picking categories/radius and scrolling results, for the
+           handful of things a rider most often needs in a hurry (see
+           findNearestOfCategory() in script.js). -->
+      <section class="panel">
+        <h2>⚡ Quick Find Nearest</h2>
+        <p class="hint">One tap, straight to the closest match.</p>
+        <div class="quick-find-grid" id="quick-find-grid">
+          <!-- filled by JS from QUICK_FIND_CATEGORY_IDS -->
+        </div>
+        <p class="hint" id="quick-find-status"></p>
+      </section>
+
+      <!-- Address / weather / elevation for the current location. Hidden until
+           a location is actually set (see loadLocationInfo() in script.js). -->
+      <section class="panel location-info-panel" id="location-info-panel" hidden>
+        <h2>Location Info</h2>
+        <div class="info-row"><span class="info-icon">📍</span><span id="info-address">Looking up address…</span></div>
+        <div class="info-row"><span class="info-icon" id="info-weather-icon">⛅</span><span id="info-weather">Loading weather…</span></div>
+        <div class="info-row"><span class="info-icon">⛰️</span><span id="info-elevation">Loading elevation…</span></div>
+        <button id="share-btn" class="secondary-btn">🔗 Copy Shareable Link</button>
+      </section>
+
+      <!-- "Find Nearby" results: map markers + this matching sidebar list,
+           both rendered together by renderResults() in script.js. The
+           🏍️/🚴/🚶 toggle picks the travel mode used for every directions request. -->
+      <section class="panel results-panel">
+        <div class="results-header">
+          <h2>Results <span id="result-count" class="count-badge">0</span></h2>
+          <div class="mode-toggle" id="mode-toggle" title="Directions travel mode">
+            <button class="mode-btn active" data-mode="car" title="Ride (motorbike/car roads)" aria-label="Ride (motorbike/car roads)" aria-pressed="true">🏍️</button>
+            <button class="mode-btn" data-mode="bike" title="Cycling" aria-label="Cycling" aria-pressed="false">🚴</button>
+            <button class="mode-btn" data-mode="foot" title="Walking" aria-label="Walking" aria-pressed="false">🚶</button>
+          </div>
+        </div>
+        <ul id="results-list" class="results-list"></ul>
+      </section>
+    </div>
+
+    <div class="sidebar-panels" id="tab-routes" hidden>
+      <!-- Search for a specific destination and draw the fastest route there
+           from the current location (see getBestRouteToQuery() in script.js). -->
+      <section class="panel">
+        <h2>🧭 Best Route</h2>
+        <div class="search-input-wrap">
+          <input type="text" id="route-dest-search" class="text-input" placeholder="Search a destination in Pune…" autocomplete="off" />
+          <ul id="route-dest-suggestions" class="suggestions-list" hidden></ul>
+        </div>
+        <button id="route-dest-btn" class="primary-btn">Get Best Route</button>
+        <p class="hint">Routes from your current location, using the 🏍️/🚴/🚶 mode picked below Results on the Explore tab.</p>
+      </section>
+
+      <!-- Rider-specific "can I actually get there?" check: searches for
+           petrol pumps within exactly the entered range (see
+           checkFuelRange() in script.js), rather than just listing the
+           nearest ones regardless of whether they're reachable. -->
+      <section class="panel">
+        <h2>⛽ Fuel Range Calculator</h2>
+        <p class="hint">Enter how far you can ride before refuelling — see which petrol pumps are actually within reach.</p>
+        <div class="radius-row">
+          <input type="range" id="fuel-range-slider" min="5" max="100" step="5" value="20" />
+          <span id="fuel-range-value">20 km</span>
+        </div>
+        <button id="fuel-range-btn" class="primary-btn">Check Fuel Range</button>
+        <p class="hint" id="fuel-range-status"></p>
+      </section>
+    </div>
+
+    <div class="sidebar-panels" id="tab-safety" hidden>
+      <!-- One-time emergency-contact setup for the floating 🆘 SOS button
+           over the map (see triggerSos() in script.js). -->
+      <section class="panel sos-panel">
+        <h2>🆘 Emergency SOS</h2>
+        <p class="hint">Set an emergency contact once — the 🆘 button on the map sends them your live location on WhatsApp (or by call) with one tap.</p>
+        <input type="text" id="sos-name" class="text-input" placeholder="Contact name (optional)" autocomplete="off" maxlength="30" />
+        <input type="tel" id="sos-phone" class="text-input" placeholder="Contact phone, with country code (e.g. +919876543210)" autocomplete="off" />
+        <p class="hint" id="sos-save-status"></p>
+      </section>
+
+      <!-- Live location sharing with a friend over a shared "Ride Code" —
+           see the "Ride Together" section of script.js (MQTT over WebSockets).
+           The "Copy Invite Link" button is what makes joining easy: it bakes
+           the code into a URL, so a friend just taps the link instead of
+           having to type the code by hand (see restoreRideCodeFromUrl()). -->
+      <section class="panel">
+        <h2>🤝 Ride Together</h2>
+        <p class="hint">Generate a code, copy the invite link, and send it to whoever you're riding with — they just tap it and hit Start Sharing.</p>
+        <div class="ride-row">
+          <input type="text" id="ride-code" class="text-input" placeholder="Ride code (e.g. tiger-482)" autocomplete="off" />
+          <button id="ride-code-generate" title="Generate a random code" aria-label="Generate a random Ride Code">🎲</button>
+        </div>
+        <button id="ride-code-copy-btn" class="secondary-btn">📋 Copy Invite Link</button>
+        <input type="text" id="ride-name" class="text-input" placeholder="Your name (optional)" autocomplete="off" maxlength="20" />
+        <button id="ride-toggle-btn" class="primary-btn">🟢 Start Sharing</button>
+        <p class="hint" id="ride-status">Not sharing.</p>
+        <ul id="ride-friends-list" class="results-list ride-friends-list" hidden></ul>
+        <p class="hint privacy-note">⚠️ Uses a public relay with no login — anyone with your Ride Code can see this location. Pick a hard-to-guess code and stop sharing when you're done.</p>
+      </section>
+    </div>
+  </aside>
+
+  <!-- The map itself, plus everything floated on top of it. -->
+  <main class="map-wrap">
+    <div id="map"></div>
+    <!-- Shown while a "Find Nearby" Overpass query is in flight. -->
+    <div class="loader" id="loader" hidden>
+      <div class="spinner-wheel">
+        <svg viewBox="0 0 40 40">
+          <circle cx="20" cy="20" r="14" />
+          <line x1="20" y1="6" x2="20" y2="34" />
+          <line x1="6" y1="20" x2="34" y2="20" />
+          <line x1="10" y1="10" x2="30" y2="30" />
+          <line x1="10" y1="30" x2="30" y2="10" />
+        </svg>
+      </div>
+      <span>Fetching nearby places…</span>
+    </div>
+    <!-- Distance/ETA pill for the currently drawn route (directions or Best Route). -->
+    <div class="route-bar" id="route-bar" hidden>
+      <span id="route-bar-text"></span>
+      <button id="route-bar-close" title="Clear route" aria-label="Clear route">✕</button>
+    </div>
+    <!-- Always-visible emergency button; see triggerSos() in script.js. -->
+    <button id="sos-btn" title="Send your location to your emergency contact" aria-label="Send SOS: share your location with your emergency contact">🆘 SOS</button>
+    <!-- Temporary confirmation/error message shown after tapping SOS. -->
+    <div class="sos-toast" id="sos-toast" hidden></div>
+    <!-- Live lat/lon under the cursor; filled by a map "mousemove" listener in script.js. -->
+    <div class="coord-readout" id="coord-readout" aria-hidden="true"></div>
+  </main>
+</div>
+
+<!-- Leaflet's JS, then our own app code (which assumes L/mqtt are already loaded). -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="script.js?v=28"></script>
+</body>
+</html>
