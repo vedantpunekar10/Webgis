@@ -15,7 +15,7 @@
 <!-- Leaflet: the map-rendering library. Its CSS must load before our own
      style.css so our overrides (dark-themed popups/controls) win. -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="style.css?v=28" />
+<link rel="stylesheet" href="style.css?v=29" />
 <!-- mqtt.js: the MQTT-over-WebSocket client used by the "Ride Together"
      live location-sharing feature (see script.js). Loaded in <head> so it's
      ready before script.js runs at the end of <body>. -->
@@ -66,6 +66,7 @@
       <button class="sidebar-tab-btn active" data-tab="explore">🗺️ Explore</button>
       <button class="sidebar-tab-btn" data-tab="routes">🧭 Routes</button>
       <button class="sidebar-tab-btn" data-tab="safety">🆘 Safety</button>
+      <button class="sidebar-tab-btn" data-tab="pilot">🧪 Access</button>
     </div>
 
     <div class="sidebar-panels" id="tab-explore">
@@ -182,6 +183,41 @@
         <p class="hint privacy-note">⚠️ Uses a public relay with no login — anyone with your Ride Code can see this location. Pick a hard-to-guess code and stop sharing when you're done.</p>
       </section>
     </div>
+
+    <div class="sidebar-panels" id="tab-pilot" hidden>
+      <!-- Experiential Learning assignment bonus feature: a live walking-
+           isochrone + nearest-service API (PostGIS + pgRouting + FastAPI),
+           see pilotMode* functions in script.js. Deliberately scoped to the
+           Kothrud, Pune study area only — it reads from a fixed local
+           dataset, not RideStop's usual India-wide live Overpass search —
+           so it's kept in its own clearly-labelled tab rather than mixed
+           into the Explore tab's normal, work-anywhere flow. Needs the
+           project's docker-compose stack running locally (pg_featureserv
+           on :9000, the routing API on :8020). -->
+      <section class="panel">
+        <h2>🧪 Walking Access Pilot</h2>
+        <p class="hint">
+          Kothrud, Pune only — a live walking-time analysis built for the
+          WebGIS Experiential Learning assignment, backed by a local
+          PostGIS + pgRouting + FastAPI stack (not RideStop's usual
+          India-wide search). Needs <code>docker compose up</code> running
+          locally.
+        </p>
+        <button id="pilot-load-layers-btn" class="secondary-btn">📥 Load Coverage &amp; Services Layers</button>
+        <p class="hint" id="pilot-layers-status"></p>
+      </section>
+
+      <section class="panel">
+        <h2>🧭 Click-to-Isochrone</h2>
+        <p class="hint">Click anywhere on the map (within Kothrud) to see how far you can walk, and the nearest healthcare services.</p>
+        <div class="radius-row">
+          <input type="range" id="pilot-minutes-slider" min="1" max="30" step="1" value="15" />
+          <span id="pilot-minutes-value">15 min</span>
+        </div>
+        <p class="hint" id="pilot-isochrone-status">Click the map to start.</p>
+        <ul id="pilot-nearest-list" class="results-list"></ul>
+      </section>
+    </div>
   </aside>
 
   <!-- The map itself, plus everything floated on top of it. -->
@@ -216,6 +252,6 @@
 
 <!-- Leaflet's JS, then our own app code (which assumes L/mqtt are already loaded). -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="script.js?v=28"></script>
+<script src="script.js?v=29"></script>
 </body>
 </html>

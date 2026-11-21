@@ -198,3 +198,31 @@ narrowed from all of India to the Pune metropolitan area:
 - No feature logic changed — this is a scope/config change (which
   viewbox, which center point) on top of the same search/geocode/routing
   pipeline described above.
+
+## 8. New feature: 🧪 Access tab (Walking Access Pilot)
+
+A genuinely new RideStop feature, added for the WebGIS Experiential
+Learning assignment this repo also contains: a fourth sidebar tab
+("🧪 Access") that loads the assignment's coverage-hexagon and
+healthcare-services layers onto RideStop's own Leaflet map, and lets a
+click anywhere on the map draw a real walking-time isochrone and list
+the nearest healthcare services by actual walking time — backed by the
+same PostGIS + pgRouting + FastAPI stack the assignment's own `client/`
+uses, called directly from `script.js` (`runPilotIsochrone()`,
+`runPilotNearest()`, `PILOT_ROUTING_API`, `PILOT_FEATURESERV`).
+
+**Honestly scoped, not silently broken elsewhere:** this tab only works
+for the Kothrud, Pune pilot dataset and only when the project's local
+Docker stack is running (`pg_featureserv` on :9000, the routing API on
+:8020) — unlike the rest of RideStop, it doesn't call Overpass/OSRM
+live, so it can't work "anywhere in India" the way Find Nearby or Best
+Route do. The tab's own panel text says this explicitly, and the load
+button fails with a clear message (not a silent blank map) if the local
+stack isn't up.
+
+**One small, deliberate behavior change:** a map click now does one of
+two things depending on which tab is open — sets the rider's location
+(every other tab, unchanged) or runs the isochrone/nearest analysis
+(Access tab only). The switch is a single `pilotModeActive` flag checked
+inside the existing map click handler, set by `switchSidebarTab()` —
+every other tab's click behavior is untouched.

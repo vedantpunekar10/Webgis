@@ -106,6 +106,10 @@ let routeLayer = null; // the currently drawn route polyline (directions / Best 
 let watchId = null; // navigator.geolocation.watchPosition() id while "Live" tracking is on; null when off
 let suggestDebounceTimer = null; // debounce handle for the main search box's autocomplete
 let suggestAbortController = null; // cancels an in-flight suggestion fetch when a newer keystroke supersedes it
+let pilotModeActive = false; // true while the "Access" tab is open -- changes what a map click does (see initMap())
+let pilotIsochroneLayer = null; // the currently drawn isochrone polygon, if any
+let pilotHexLayer = null; // the loaded coverage-hexagon layer, if any
+let pilotServicesLayer = null; // the loaded healthcare-services layer, if any
 
 // ---------- DOM refs ----------
 // One constant per element the script touches, resolved once at load time.
@@ -151,6 +155,7 @@ const sidebarTabPanels = {
   explore: document.getElementById("tab-explore"),
   routes: document.getElementById("tab-routes"),
   safety: document.getElementById("tab-safety"),
+  pilot: document.getElementById("tab-pilot"),
 };
 const fuelRangeSlider = document.getElementById("fuel-range-slider");
 const fuelRangeValue = document.getElementById("fuel-range-value");
@@ -158,6 +163,12 @@ const fuelRangeBtn = document.getElementById("fuel-range-btn");
 const fuelRangeStatus = document.getElementById("fuel-range-status");
 const quickFindGrid = document.getElementById("quick-find-grid");
 const quickFindStatus = document.getElementById("quick-find-status");
+const pilotLoadLayersBtn = document.getElementById("pilot-load-layers-btn");
+const pilotLayersStatus = document.getElementById("pilot-layers-status");
+const pilotMinutesSlider = document.getElementById("pilot-minutes-slider");
+const pilotMinutesValue = document.getElementById("pilot-minutes-value");
+const pilotIsochroneStatus = document.getElementById("pilot-isochrone-status");
+const pilotNearestList = document.getElementById("pilot-nearest-list");
 
 // ---------- Init map ----------
 // Creates the Leaflet map centered on Pune, wires up the two switchable
@@ -195,8 +206,15 @@ function initMap() {
     coordReadout.textContent = "";
   });
 
-  // Clicking the map sets the user location manually.
+  // Clicking the map sets the user location manually -- unless the Access
+  // pilot tab is open, in which case a click instead runs the walking
+  // isochrone / nearest-service analysis (see pilotModeActive below).
   map.on("click", (e) => {
+    if (pilotModeActive) {
+      runPilotIsochrone(e.latlng);
+      runPilotNearest(e.latlng);
+      return;
+    }
     setUserLocation(e.latlng.lat, e.latlng.lng, "Location set from map click");
   });
 }
@@ -1715,6 +1733,7 @@ function switchSidebarTab(tabName) {
   Object.entries(sidebarTabPanels).forEach(([name, el]) => {
     el.hidden = name !== tabName;
   });
+  pilotModeActive = tabName === "pilot";
   let activeBtn = null;
   [...sidebarTabs.querySelectorAll(".sidebar-tab-btn")].forEach((btn) => {
     const isActive = btn.dataset.tab === tabName;
@@ -1733,6 +1752,101 @@ function switchSidebarTab(tabName) {
 function updateSidebarTabIndicator(btn) {
   sidebarTabIndicator.style.left = `${btn.offsetLeft}px`;
   sidebarTabIndicator.style.width = `${btn.offsetWidth}px`;
+}
+
+// ---------- Walking Access Pilot (Experiential Learning assignment bonus) ----------
+// A live walking-time analysis over a real pgRouting network, scoped to
+// the Kothrud, Pune study area only -- built for the WebGIS Experiential
+// Learning assignment's bonus challenge, reusing the same PostGIS data
+// this project's analysis/ scripts loaded. Needs the project's own
+// docker-compose stack running locally (pg_featureserv on :9000, the
+// routing API on :8020) -- it does not call Overpass/OSRM like the rest
+// of RideStop, so it only works for this one pilot area, not India-wide.
+const PILOT_FEATURESERV = "http://localhost:9000";
+const PILOT_ROUTING_API = "http://localhost:8020";
+const PILOT_WALK_SPEED_M_PER_MIN = 80; // 4.8 km/h, same assumption the assignment uses throughout
+
+pilotMinutesSlider.addEventListener("input", () => {
+  pilotMinutesValue.textContent = `${pilotMinutesSlider.value} min`;
+});
+
+// Loads the coverage-hexagon and healthcare-services layers once, on
+// request rather than automatically -- both are small (59 hexagons, 151
+// services) so there's no real performance reason to lazy-load them, but
+// requiring a tap keeps the pilot's "this needs the local stack running"
+// dependency visible rather than silently failing on page load for
+// anyone who opens RideStop without that stack up.
+pilotLoadLayersBtn.addEventListener("click", async () => {
+  pilotLayersStatus.textContent = "Loading…";
+  try {
+    const [hexRes, servicesRes] = await Promise.all([
+      fetch(`${PILOT_FEATURESERV}/collections/public.hex_coverage_res9/items.json?limit=1000`),
+      fetch(`${PILOT_FEATURESERV}/collections/public.services/items.json?limit=1000`),
+    ]);
+    const [hexGeojson, servicesGeojson] = await Promise.all([hexRes.json(), servicesRes.json()]);
+
+    if (pilotHexLayer) map.removeLayer(pilotHexLayer);
+    pilotHexLayer = L.geoJSON(hexGeojson, {
+      style: (feature) => {
+        const d = feature.properties.network_dist_m;
+        const color = d < 600 ? "#2ca25f" : d < 1200 ? "#fdae61" : "#d73027";
+        return { color, weight: 1, fillColor: color, fillOpacity: 0.35 };
+      },
+    }).addTo(map);
+
+    if (pilotServicesLayer) map.removeLayer(pilotServicesLayer);
+    pilotServicesLayer = L.geoJSON(servicesGeojson, {
+      pointToLayer: (feature, latlng) =>
+        L.circleMarker(latlng, { radius: 5, color: "#fff", weight: 1, fillColor: "#08519c", fillOpacity: 1 }),
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties;
+        layer.bindPopup(`<b>${escapeHtml(p.name || "(unnamed)")}</b><br>${escapeHtml(p.amenity || p.healthcare || "")}`);
+      },
+    }).addTo(map);
+
+    pilotLayersStatus.textContent = `Loaded ${hexGeojson.features.length} coverage cells, ${servicesGeojson.features.length} services.`;
+  } catch (e) {
+    pilotLayersStatus.textContent = `Couldn't load (is the local stack running on :9000?): ${e.message}`;
+  }
+});
+
+// Click handler (wired from initMap()'s map click listener, when the
+// Access tab is active): draws the walking isochrone for the clicked point.
+async function runPilotIsochrone(latlng) {
+  pilotIsochroneStatus.textContent = "Loading isochrone…";
+  const minutes = pilotMinutesSlider.value;
+  try {
+    const res = await fetch(`${PILOT_ROUTING_API}/isochrone?lon=${latlng.lng}&lat=${latlng.lat}&minutes=${minutes}`);
+    if (!res.ok) throw new Error(`API returned ${res.status}`);
+    const feature = await res.json();
+
+    if (pilotIsochroneLayer) map.removeLayer(pilotIsochroneLayer);
+    pilotIsochroneLayer = L.geoJSON(feature, {
+      style: { color: "#3182bd", weight: 2, fillColor: "#3182bd", fillOpacity: 0.2 },
+    }).addTo(map);
+
+    const areaKm2 = (feature.properties.area_m2 / 1e6).toFixed(2);
+    pilotIsochroneStatus.textContent =
+      `${feature.properties.reached_nodes} nodes reached, ${areaKm2} km² ` +
+      `(${feature._timing.db_ms}ms db)`;
+  } catch (e) {
+    pilotIsochroneStatus.textContent = `Couldn't load isochrone (is the local stack running on :8020?): ${e.message}`;
+  }
+}
+
+// Click handler counterpart: lists the 5 nearest healthcare services by
+// real walking time from the clicked point.
+async function runPilotNearest(latlng) {
+  try {
+    const res = await fetch(`${PILOT_ROUTING_API}/nearest?lon=${latlng.lng}&lat=${latlng.lat}&k=5`);
+    if (!res.ok) throw new Error(`API returned ${res.status}`);
+    const data = await res.json();
+    pilotNearestList.innerHTML = data.results
+      .map((s) => `<li>${escapeHtml(s.name)} — ${s.minutes} min (${formatDistance(s.distance_m)})</li>`)
+      .join("");
+  } catch (e) {
+    pilotNearestList.innerHTML = `<li class="hint">${escapeHtml(e.message)}</li>`;
+  }
 }
 
 // ---------- Bootstrap ----------

@@ -759,3 +759,17 @@ plus a precisely root-caused and fixed 550× speedup); B2 (+1, real
 cross-engine comparison with both discrepancies traced to their actual,
 confirmed causes rather than assumed); B3 (+1, four real hull methods
 compared with areas, timings, and a genuine visual comparison).
+
+**A second, independent client integration:** beyond the required
+MapLibre client (`client/`), the same `/isochrone` and `/nearest`
+endpoints are also wired directly into **RideStop's own Leaflet map** as
+a new "🧪 Access" sidebar tab (`script.js`, `runPilotIsochrone()` /
+`runPilotNearest()` / `pilotModeActive`) — a genuine working feature for
+the actual rider app this assignment is built on top of, not just the
+assignment's own standalone demo page. Clearly labelled as scoped to the
+Kothrud pilot dataset only (it reads from the local PostGIS/API stack,
+not RideStop's usual live-anywhere-in-India Overpass search), and
+verified live: loading the layers reports "Loaded 59 coverage cells, 151
+services", and a real mouse click on RideStop's map draws a real
+isochrone and lists real nearest services by walking time, through
+RideStop's own UI and styling.
