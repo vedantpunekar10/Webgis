@@ -130,17 +130,20 @@ connection. Fixed the same way both times: `docker compose up -d
 pg_featureserv`. Worth knowing if a fresh `docker compose up` ever leaves
 it in `Exited (1)`.
 
-**A GitHub Pages deploy flakiness:** two separate `deploy-pages` runs
-failed with `Error: No artifacts named "github-pages" were found for
-this workflow run`, even though the preceding `upload-pages-artifact`
-step had genuinely just produced that artifact (visible in the run's own
-"Artifacts" list, ~68KB each time). This looks like an artifact-indexing
-race on GitHub's side between the upload and deploy steps running
-back-to-back with no gap — not a bug in this workflow. Fixed by pushing
-again rather than relying on "Re-run jobs" (re-running a finished job hit
-a *different*, also-known quirk: it can't always find its own prior
-run's artifact either). If the deploy step ever fails with this exact
-message, just push again.
+**A GitHub Pages deploy race, reproduced 3/3 times:** every push
+consistently failed with `Error: No artifacts named "github-pages" were
+found for this workflow run`, even though the preceding
+`upload-pages-artifact` step had genuinely just produced that artifact
+(visible in each run's own "Artifacts" list, ~68KB every time) — a
+perfectly reproducible failure rules out "just bad luck." The original
+workflow ran `upload-pages-artifact` and `deploy-pages` back-to-back in
+one job with no gap; `deploy-pages`'s own artifact-metadata lookup
+couldn't find what the previous step had just uploaded moments earlier,
+every single time. Fixed by splitting into two jobs (`build` uploads,
+`deploy` `needs: build`) — the pattern GitHub's own starter workflow
+uses — which resolved it on the next push. A same-job retry ("Re-run
+jobs" on the old single-job workflow) hit a related but different quirk
+of its own: it couldn't find its own prior run's artifact either.
 
 ## Open items (need your action — not something I can do from here)
 

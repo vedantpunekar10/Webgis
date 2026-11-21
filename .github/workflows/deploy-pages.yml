@@ -15,17 +15,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  # Split into two jobs (the pattern GitHub's own starter workflow uses) --
+  # an earlier single-job version ran upload-pages-artifact and
+  # deploy-pages back to back inside the same job with no gap, and
+  # deploy-pages's own artifact-metadata lookup consistently (3/3 runs)
+  # couldn't find the artifact the previous step had JUST produced (visible
+  # in each run's own Artifacts list) -- a real indexing race, not
+  # something retrying the same single-job shape would fix. The job
+  # boundary here is what actually resolves it.
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - name: Upload client/ as the Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: client
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
