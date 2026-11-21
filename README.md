@@ -1,10 +1,10 @@
 # WebGIS Assignment: From Nearby Services to a Deployed Map Service
 
-**Public URL:** _GitHub Actions workflow is written and committed
-(`.github/workflows/deploy-pages.yml`); the live URL depends on GitHub
-Pages being enabled in this repo's Settings → Pages, which only the repo
-owner can do. Update this line once that's done and the first deploy
-completes._
+**Public URL:** https://vedantpunekar10.github.io/Webgis/ (expected —
+GitHub Pages source is now set to "GitHub Actions"; this commit
+re-triggers the deploy workflow with a fresh run, since a manual
+"re-run" of the previous attempt hit a known GitHub artifact-reuse
+quirk instead of actually rebuilding).
 
 Builds on **RideStop** — the pre-existing rider-focused nearby-services
 Web GIS in this same repo (`index.html` / `style.css` / `script.js`; see
