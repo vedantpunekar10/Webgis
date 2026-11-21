@@ -1,0 +1,31 @@
+point,pgrouting_dist_m,pgrouting_nearest,osmnx_dist_m,osmnx_nearest,pct_diff,same_service
+0,331.3,Kamal Netra Rugnalaya,331.3,Kamal Netra Rugnalaya,0.0,True
+1,818.2,Sathe Multispeciality Hospital,818.2,Sathe Multispeciality Hospital,0.0,True
+2,150.8,Sunny Nursing Home,150.8,Sunny Nursing Home,0.0,True
+3,112.8,Urovision,155.0,Urovision,27.2,True
+4,1083.4,PMC - Late. Jayabai Nanasaheb Sutar Maternity Home,1083.4,PMC - Late. Jayabai Nanasaheb Sutar Maternity Home,0.0,True
+5,171.9,Shrinath Medicos,171.9,Shrinath Medicos,0.0,True
+6,986.0,Shrinath Medicos,986.0,Shrinath Medicos,0.0,True
+7,110.0,Suryaprabha Nursing Home,110.0,Suryaprabha Nursing Home,0.0,True
+8,245.7,Shrinath Medicos,245.7,Shrinath Medicos,0.0,True
+9,155.7,Deoyani Hospital,155.7,Deoyani Hospital,0.0,True
+10,177.9,"Krishna Hospital, Pune",177.9,"Krishna Hospital, Pune",0.0,True
+11,968.9,Sathe Multispeciality Hospital,968.9,Sathe Multispeciality Hospital,0.0,True
+12,300.1,Dr. Chavan Clinic,300.1,Dr. Chavan Clinic,0.0,True
+13,1534.3,Shrinath Medicos,1534.3,Shrinath Medicos,0.0,True
+14,244.6,"Krishna Hospital, Pune",244.6,"Krishna Hospital, Pune",0.0,True
+15,334.4,Sunny Nursing Home,334.4,Sunny Nursing Home,0.0,True
+16,750.9,Panacea Multispeciality Clinic,750.9,Panacea Multispeciality Clinic,0.0,True
+17,247.3,Kulkarni Endo Surgery Institute and Reconstructive Urology Centre,247.3,Kulkarni Endo Surgery Institute and Reconstructive Urology Centre,0.0,True
+18,477.4,Rode Hospital,0.0,"Krishna Hospital, Pune",,False
+19,166.8,Rode Hospital,166.8,Rode Hospital,0.0,True
+20,369.4,Suyash Hospital,363.2,Urovision,1.7,False
+21,642.3,City Hospital,642.3,City Hospital,0.0,True
+22,754.4,Shrinath Medicos,754.4,Shrinath Medicos,0.0,True
+23,725.9,Shrinath Medicos,725.9,Shrinath Medicos,0.0,True
+24,405.7,Argade Infertility and Endoscopic Surgery and Icu Center,405.7,Argade Infertility and Endoscopic Surgery and Icu Center,0.0,True
+25,801.9,Sathe Multispeciality Hospital,801.9,Sathe Multispeciality Hospital,0.0,True
+26,1082.0,Kulkarni Endo Surgery Institute and Reconstructive Urology Centre,1082.0,Kulkarni Endo Surgery Institute and Reconstructive Urology Centre,0.0,True
+27,276.2,Suryaprabha Nursing Home,276.2,Suryaprabha Nursing Home,0.0,True
+28,219.4,Kurtkoti Nursing Home,219.4,Kurtkoti Nursing Home,0.0,True
+29,415.9,City Hospital,415.9,City Hospital,0.0,True

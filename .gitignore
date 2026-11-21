@@ -7,3 +7,7 @@ node_modules/
 *.tiff
 *.geojson.bak
 data/raw/
+*.log
+api/test_*.json
+api/hull_*.json
+api/b3_hulls.txt

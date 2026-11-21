@@ -10,7 +10,7 @@ Builds on **RideStop** — the pre-existing rider-focused nearby-services
 Web GIS in this same repo (`index.html` / `style.css` / `script.js`; see
 [`README_RIDESTOP.md`](README_RIDESTOP.md) for that app's own
 documentation) — rebuilding it into a provider/analyst Web GIS backed by
-PostGIS, GeoServer, pg_tileserv and pg_featureserv — answering: which
+PostGIS (+ pgRouting), GeoServer, pg_tileserv and pg_featureserv — answering: which
 residents of the study area cannot reach the service on foot within a
 reasonable time, and why?
 
@@ -52,6 +52,8 @@ Services, once up:
   the container is remapped to avoid the conflict; see debugging log)
 - pg_tileserv: `http://localhost:7800/`
 - pg_featureserv: `http://localhost:9000/`
+- Bonus routing API (FastAPI + pgRouting): `http://localhost:8020/`
+  (`/isochrone`, `/nearest`, `/health`)
 
 RideStop itself (the baseline app) is static and needs no server beyond
 any plain static file host — see [`README_RIDESTOP.md`](README_RIDESTOP.md).
@@ -120,6 +122,14 @@ Fixed by writing a small custom range-serving test server
 (`client/range_server.py`) to confirm the real mechanics before trusting
 GitHub Pages' own CDN to do the same.
 
+**A recurring fragility, seen twice:** `pg_featureserv` crashes outright
+(`write: broken pipe`, exit 1) whenever `postgis` is recreated out from
+under it (once for the port fix, again when swapping to the
+pgRouting-bundled image for the bonus) — it doesn't retry its database
+connection. Fixed the same way both times: `docker compose up -d
+pg_featureserv`. Worth knowing if a fresh `docker compose up` ever leaves
+it in `Exited (1)`.
+
 ## Open items (need your action — not something I can do from here)
 
 1. **Class-sheet registration** — area (Kothrud), service type
@@ -131,6 +141,15 @@ GitHub Pages' own CDN to do the same.
 3. **Q12's 5-service second-source spot-check** (Q3 as well) needs real
    local verification — a site visit, call, or an authoritative Pune
    healthcare directory — that isn't something to fabricate remotely.
-4. **Bonus (B1–B3)** was not attempted, per the brief's own time estimate
-   (15–20 extra hours) — everything above already represents a full,
-   real Q1–Q12 pass plus a working deployment pipeline.
+
+**Bonus (B1–B3) is done** — see the "Bonus challenge" section at the end
+of `ANSWERS.md`. A real pgRouting-backed FastAPI (`api/`, added as the
+`routing_api` service in `docker-compose.yml`) serves live
+`/isochrone` and `/nearest` endpoints, wired into the MapLibre client
+(`client/index-local.html`) with a click handler and a minutes slider,
+verified working live. B1 found and fixed a genuine 550× latency
+regression (a duplicated, expensive `ST_ConcaveHull` call); B2
+cross-validated pgRouting against the OSMnx results from Q6 and traced
+the one real >10% discrepancy to its exact cause (a service-to-node
+snapping difference between two scripts, not a routing disagreement); B3
+compares four hull methods with a real visual.

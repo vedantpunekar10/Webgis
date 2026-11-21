@@ -32,12 +32,21 @@
     <span class="legend-swatch" style="background:#fdae61"></span>600–1200m<br>
     <span class="legend-swatch" style="background:#d73027"></span>&gt; 1200m (beyond 15-min threshold)
   </div>
+  <hr style="margin:10px 0;border:none;border-top:1px solid #ddd;">
+  <strong>Bonus: live walking-isochrone API</strong>
+  <p style="font-size:11px;color:#555;margin:4px 0;">Click anywhere on the map.</p>
+  <label>Minutes: <span id="minutes-value">15</span>
+    <input type="range" id="minutes-slider" min="1" max="30" value="15" style="width:100%;">
+  </label>
+  <div id="isochrone-status" style="font-size:11px;color:#555;"></div>
+  <ol id="nearest-list" style="font-size:12px;padding-left:18px;margin:6px 0 0;"></ol>
 </div>
 
 <script>
 const TILESERV = "http://localhost:7800";
 const FEATURESERV = "http://localhost:9000";
 const GEOSERVER = "http://localhost:8081/geoserver/webgis";
+const ROUTING_API = "http://localhost:8020";
 
 const map = new maplibregl.Map({
   container: "map",
@@ -127,6 +136,60 @@ map.on("load", () => {
         });
       });
   });
+
+  // Bonus: click-to-isochrone + nearest-services, via the live FastAPI/pgRouting backend.
+  const minutesSlider = document.getElementById("minutes-slider");
+  const minutesValue = document.getElementById("minutes-value");
+  const isoStatus = document.getElementById("isochrone-status");
+  const nearestList = document.getElementById("nearest-list");
+  let lastClick = null;
+
+  minutesSlider.addEventListener("input", () => {
+    minutesValue.textContent = minutesSlider.value;
+    if (lastClick) runIsochrone(lastClick);
+  });
+
+  map.on("click", (e) => {
+    // ignore clicks that landed on a service point (that has its own popup handler above)
+    const hits = map.queryRenderedFeatures(e.point, { layers: ["services-points"] });
+    if (hits.length) return;
+    lastClick = e.lngLat;
+    runIsochrone(lastClick);
+    runNearest(lastClick);
+  });
+
+  function runIsochrone(lngLat) {
+    const minutes = minutesSlider.value;
+    isoStatus.textContent = "Loading isochrone...";
+    const t0 = performance.now();
+    fetch(`${ROUTING_API}/isochrone?lon=${lngLat.lng}&lat=${lngLat.lat}&minutes=${minutes}`)
+      .then((r) => r.json())
+      .then((feature) => {
+        const clientMs = Math.round(performance.now() - t0);
+        if (map.getLayer("isochrone-layer")) map.removeLayer("isochrone-layer");
+        if (map.getSource("isochrone")) map.removeSource("isochrone");
+        map.addSource("isochrone", { type: "geojson", data: feature });
+        map.addLayer({
+          id: "isochrone-layer",
+          type: "fill",
+          source: "isochrone",
+          paint: { "fill-color": "#3182bd", "fill-opacity": 0.25, "fill-outline-color": "#08519c" },
+        }, "services-points");
+        isoStatus.textContent = `${feature.properties.reached_nodes} nodes reached, ` +
+          `${(feature.properties.area_m2 / 1e6).toFixed(2)} km² ` +
+          `(${clientMs}ms round-trip, ${feature._timing.db_ms}ms db)`;
+      });
+  }
+
+  function runNearest(lngLat) {
+    fetch(`${ROUTING_API}/nearest?lon=${lngLat.lng}&lat=${lngLat.lat}&k=5`)
+      .then((r) => r.json())
+      .then((data) => {
+        nearestList.innerHTML = data.results
+          .map((s) => `<li>${s.name} — ${s.minutes} min (${s.distance_m}m)</li>`)
+          .join("");
+      });
+  }
 });
 </script>
 </body>

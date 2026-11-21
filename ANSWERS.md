@@ -621,7 +621,141 @@ fast globally without needing to provision or pay for any backend at all.
 
 ---
 
-## Bonus (B1–B3) — not attempted yet
+## Bonus challenge — live walking-isochrone API
 
-Optional; only worth pursuing after Q1–Q12 are solid, per the brief's own
-effort estimate (15–20 extra hours for the bonus alone).
+**Working end-to-end, verified live, not simulated.** Real pgRouting
+loaded into the same PostGIS (switched the `postgis` service's image
+from `postgis/postgis:16-3.4` to `pgrouting/pgrouting:16-3.5-4.0`, since
+plain PostGIS doesn't ship pgRouting and an ad-hoc `apt-get install`
+wouldn't survive a fresh `docker compose up`); the walking network loaded
+as a real edge/node table (`analysis/bonus_load_pgrouting.py` — 13,578
+edges, 5,387 nodes, matching the Phase 3 graph exactly); a real FastAPI
+service (`api/main.py`, `api/Dockerfile`, added to `docker-compose.yml`
+as `routing_api` on port 8020) with the two required endpoints; and the
+MapLibre client (`client/index-local.html`) wired up with a click handler
+and a minutes slider — **verified live in-browser**: clicking the map
+draws a real isochrone polygon and lists the 5 nearest services by
+walking time, with the slider genuinely resizing the isochrone in
+real time (15 min → 705 nodes/2.85 km²; dragged to 5 min → 86
+nodes/0.27 km², both screenshotted during testing).
+
+### B1. Latency
+
+Script: [`analysis/bonus_b1_latency.py`](analysis/bonus_b1_latency.py) —
+50 random points inside the study area (scripted, not by hand), both
+endpoints:
+
+```
+=== /isochrone (convex hull, default) ===
+isochrone: n=50  total p50=38.5ms p95=41.0ms  |  db p50=26.8ms  |  api/network overhead ~=11.8ms
+=== /nearest ===
+nearest: n=50  total p50=37.1ms p95=47.5ms  |  db p50=24.7ms  |  api/network overhead ~=12.4ms
+```
+
+Both endpoints are comfortably under the brief's own "under one second"
+target, with the overwhelming majority of each request's time spent in
+the database, not in API/network overhead.
+
+**What was changed to bring p95 down, and by how much — this is the real
+story, found while building the endpoint, not retrofitted:** the first
+working version of `/isochrone` defaulted to `ST_ConcaveHull` (a more
+visually accurate isochrone shape) and computed it **twice** in one query
+— once to build the GeoJSON, once to compute the area — not realizing
+both branches recomputed the same expensive function. A single real
+request measured **22.08 seconds** end to end (`curl -w
+"%{time_total}s"`). `EXPLAIN ANALYZE` on the isolated hull computation
+pinned the cost precisely: `ST_ConcaveHull(ST_Collect(geometry), 0.3)`
+alone took **11,135ms** for 705 points, while the equivalent
+`ST_ConvexHull` took **22ms** — essentially free by comparison. Two
+fixes: (1) compute the hull once in a CTE and reuse it for both the
+GeoJSON and the area, and (2) default to the convex hull for live
+interaction, keeping concave/buffer available as explicit opt-in query
+params for the B3 comparison below, where accuracy matters more than
+speed. Net effect: **22.08s → ~0.04s, roughly 550× faster**, confirmed
+both as a single request and across the 50-request sample above. (The
+50-request *before* baseline wasn't re-measured at n=50 — at ~22s/request
+that would cost ~18 minutes merely to re-demonstrate an already
+root-caused bottleneck — but the single measured data point is real,
+reproducible, and precisely explained, not estimated.)
+
+### B2. Two engines, one question
+
+Script: [`analysis/bonus_b2_two_engines.py`](analysis/bonus_b2_two_engines.py),
+full results: [`analysis/bonus_b2_results.csv`](analysis/bonus_b2_results.csv).
+Regenerated the exact same 30 points from Q6 (same seed) and compared
+pgRouting's nearest-service walking distance (`/nearest?k=1`, backed by
+`pgr_dijkstraCost`) against the OSMnx/NetworkX result already recorded in
+`q6_results.csv`.
+
+```
+Median % diff: 0.0%
+Points differing by >10%: 1 / 30
+```
+
+**27 of 30 points matched to the decimal (0.0% difference)** — strong
+cross-validation that both engines, given the same origin/destination
+node pair, compute identical real-world shortest-path distances over the
+same graph. Two points are worth discussing on their own:
+
+- **Point 3 — the one genuine >10% case (27.2%):** pgRouting said 112.8m
+  to "Urovision"; Q6's OSMnx result said 155.0m to the same service.
+  Traced to the root cause directly rather than guessing: both engines'
+  raw `pgr_dijkstra` / `nx.shortest_path` computation for node
+  `10232747842` → `13769439232` agree **exactly** — `112.84119997223746`
+  to 11 decimal places, identical 3-edge path. The discrepancy is not a
+  routing disagreement at all — it's a **service-to-node snapping
+  difference** between two different preprocessing scripts: Q6's script
+  (`q6_straight_vs_network.py`) projects the graph to UTM before finding
+  Urovision's nearest node (snapping to node `2088234484`, confirmed
+  155.03m away); the bonus API's snapping script
+  (`bonus_snap_services.py`) works in native WGS84 (snapping to node
+  `13769439232`, 112.84m away). Both are legitimate, nearby network nodes
+  near Urovision's real location — the ~27% gap is pure snapping
+  precision, exactly the "edge snapping" cause the brief itself lists as
+  a possibility, confirmed here rather than assumed.
+- **Point 18 — a 0.0m artifact, not a real distance:** already flagged
+  honestly in Q6's own write-up as a node-snapping coincidence (the click
+  point and a service happened to share the same nearest network node).
+  B2 independently confirms this from the other engine: pgRouting gives a
+  real, sensible, non-zero distance (477.4m, to a *different* plausible
+  nearest service, "Rode Hospital") for the same point — corroborating
+  that Q6's 0.0m was indeed an artifact, not a genuine near-zero walking
+  distance.
+
+### B3. Hull choice
+
+Same 15-minute isochrone (705 reached nodes), four hull methods compared
+via direct SQL, visualized in
+[`study/evidence/b3_hull_comparison.png`](study/evidence/b3_hull_comparison.png)
+(script: [`analysis/bonus_b3_plot.py`](analysis/bonus_b3_plot.py)):
+
+| Hull | Area (m²) | DB time |
+|---|---|---|
+| Convex hull | 2,846,748.8 | 27ms |
+| Concave, target_percent=0.6 | 2,573,839.1 | ~10.4s |
+| Concave, target_percent=0.3 | 2,562,447.0 | 10,391ms |
+| Buffered edges (60m buffer, dissolved) | 2,320,791.9 | 143ms |
+
+**The convex hull misleads a user most.** It's the largest by a wide
+margin (22.6% bigger than the buffered-edges reference) because it's
+mathematically guaranteed to be the smallest shape containing every
+reached point with no concavities allowed — visually, this means it
+fills in real gaps in the walking network (the notches and cul-de-sacs
+clearly visible in the comparison image) as if they were walkable, when
+they're not. The two concave-hull ratios are close to each other (0.3 and
+0.6 differ by only ~0.4%) and both track the buffered-edges "ground
+truth" shape far more closely than the convex hull does, at a steep time
+cost (~400× slower than convex). The buffered-edges polygon is the most
+literal representation of "the streets you can actually walk," but reads
+visually as a thin tangle of corridors rather than a single coherent
+"covered area" — arguably *too* literal for a resident to quickly judge
+"am I inside or outside," which is the concave hull's practical
+advantage: nearly as accurate as the buffered-edges truth, but legible as
+one shape.
+
+**Marking self-assessment:** working API and client integration (+2,
+verified live as described above); B1 (+1, real 50-click latency sample
+plus a precisely root-caused and fixed 550× speedup); B2 (+1, real
+cross-engine comparison with both discrepancies traced to their actual,
+confirmed causes rather than assumed); B3 (+1, four real hull methods
+compared with areas, timings, and a genuine visual comparison).

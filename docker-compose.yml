@@ -1,6 +1,10 @@
 services:
   postgis:
-    image: postgis/postgis:16-3.4
+    # Bumped from postgis/postgis:16-3.4 to a pgRouting-bundled image (PostGIS
+    # 3.5 instead of 3.4) so the bonus isochrone/nearest-service API can use
+    # pgr_drivingDistance -- plain postgis/postgis doesn't ship pgRouting, and
+    # apt-installing it at runtime wouldn't survive a fresh `docker compose up`.
+    image: pgrouting/pgrouting:16-3.5-4.0
     container_name: wgis-postgis
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -56,6 +60,20 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB}
     ports:
       - "9000:9000"
+    depends_on:
+      postgis:
+        condition: service_healthy
+    networks:
+      - webgis-net
+
+  # Bonus: live walking-isochrone / nearest-service API (FastAPI + pgRouting).
+  routing_api:
+    build: ./api
+    container_name: wgis-routing-api
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB}
+    ports:
+      - "8020:8000"
     depends_on:
       postgis:
         condition: service_healthy
